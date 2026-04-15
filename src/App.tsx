@@ -7,7 +7,7 @@ import InspectorPanel from './components/InspectorPanel'
 import TransactionView from './components/TransactionView'
 import LoginPage from './components/LoginPage'
 import { supabase } from './lib/supabase'
-import { mockBudgetData, mockAccounts, mockTransactions } from './data/mockData'
+import { mockBudgetData } from './data/mockData'
 import type { CategoryGroup, Transaction, CategoryPlan } from './data/mockData'
 import type { Session } from '@supabase/supabase-js'
 
@@ -52,17 +52,12 @@ function BudgetApp() {
   const [isDark, setIsDark] = useState(true)
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH)
   const [resizeHovered, setResizeHovered] = useState(false)
-  const [accounts, setAccounts] = useState<Account[]>(mockAccounts)
-  const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions)
+  const [accounts, setAccounts] = useState<Account[]>([])
+  const [transactions, setTransactions] = useState<Transaction[]>([])
   const [closedAccountIds, setClosedAccountIds] = useState<Set<string>>(new Set())
   const [budgetGroups, setBudgetGroups] = useState<CategoryGroup[]>(mockBudgetData)
-  const [budgetMonth, setBudgetMonth] = useState({ year: 2026, month: 4 })
-  // Pre-seed April 2026 with the base assigned values from mockData
-  const [monthlyAssigned, setMonthlyAssigned] = useState<Record<string, Record<string, number>>>(() => {
-    const seed: Record<string, number> = {}
-    mockBudgetData.forEach(g => g.categories.forEach(c => { seed[c.id] = c.assigned }))
-    return { '2026-04': seed }
-  })
+  const [budgetMonth, setBudgetMonth] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 })
+  const [monthlyAssigned, setMonthlyAssigned] = useState<Record<string, Record<string, number>>>({})
   const [showAddAccount, setShowAddAccount] = useState(false)
   const [newName, setNewName] = useState('')
   const [newBalance, setNewBalance] = useState('')
