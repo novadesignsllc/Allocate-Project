@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Transaction } from '../data/mockData'
+import { supabase } from '../lib/supabase'
 
 export interface Account {
   id: string
@@ -295,6 +296,19 @@ export default function Sidebar({ activeView, onViewChange, isDark, onThemeToggl
                     className="absolute top-1 w-4 h-4 rounded-full bg-white shadow-md transition-all duration-200"
                     style={{ left: isDark ? '1.375rem' : '0.25rem' }}
                   />
+                </button>
+              </div>
+
+              <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <button
+                  onClick={() => supabase.auth.signOut()}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all"
+                  style={{ color: '#f87171' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.1)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <span>↪</span>
+                  <span className="font-medium">Sign Out</span>
                 </button>
               </div>
             </div>
