@@ -5,8 +5,11 @@ import BudgetHeader from './components/BudgetHeader'
 import BudgetTable from './components/BudgetTable'
 import InspectorPanel from './components/InspectorPanel'
 import TransactionView from './components/TransactionView'
+import LoginPage from './components/LoginPage'
+import { supabase } from './lib/supabase'
 import { mockBudgetData, mockAccounts, mockTransactions } from './data/mockData'
 import type { CategoryGroup, Transaction, CategoryPlan } from './data/mockData'
+import type { Session } from '@supabase/supabase-js'
 
 const MIN_WIDTH = 200
 const MAX_WIDTH = 256
@@ -18,7 +21,31 @@ const ACCOUNT_TYPES = [
   { value: 'credit',   label: 'Credit Card' },
 ]
 
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const [session, setSession] = useState<Session | null | undefined>(undefined)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  if (session === undefined) return null
+  if (session === null) return <LoginPage />
+  return <>{children}</>
+}
+
 export default function App() {
+  return (
+    <AuthGate>
+      <BudgetApp />
+    </AuthGate>
+  )
+}
+
+function BudgetApp() {
   const [activeView, setActiveView] = useState('budget')
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)

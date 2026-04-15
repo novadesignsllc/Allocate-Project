@@ -87,18 +87,7 @@ export default function CategoryGroup({
         onMouseEnter={e => (e.currentTarget.style.background = 'rgba(109,40,217,0.1)')}
         onMouseLeave={e => (e.currentTarget.style.background = 'rgba(109,40,217,0.06)')}
       >
-        {/* Chevron — matches w-4 spacer in header */}
-        <div className="w-4 flex-shrink-0 flex items-center">
-          <span
-            className="text-xs"
-            style={{
-              color: 'var(--text-faint)',
-              display: 'inline-block',
-              transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-              transition: 'transform 0.15s',
-            }}
-          >▾</span>
-        </div>
+        <div className="w-4 flex-shrink-0" />
         <div className="flex-1 pl-2">
           <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--text-secondary)' }}>
             {group.name}
@@ -106,19 +95,17 @@ export default function CategoryGroup({
         </div>
         <div className="flex items-center flex-shrink-0">
           <div style={{ width: '128px', textAlign: 'right', paddingRight: '16px' }}>
-            <span className="text-xs font-medium" style={{ color: 'var(--text-faint)' }}>{fmt(totalAssigned)}</span>
+            <span className="text-sm font-medium" style={{ color: 'var(--text-faint)' }}>{fmt(totalAssigned)}</span>
           </div>
           <div style={{ width: '128px', textAlign: 'right', paddingRight: '16px' }}>
-            <span className="text-xs" style={{ color: 'var(--text-faint)' }}>{fmt(totalActivity)}</span>
+            <span className="text-sm" style={{ color: 'var(--text-faint)' }}>{fmt(totalActivity)}</span>
           </div>
           <div style={{ width: '128px', textAlign: 'right' }}>
-            <span className="text-xs font-semibold" style={{ color: totalAvailable < 0 ? '#f87171' : 'var(--text-secondary)' }}>
+            <span className="text-sm font-semibold" style={{ color: totalAvailable < 0 ? '#f87171' : 'var(--text-secondary)' }}>
               {fmt(totalAvailable)}
             </span>
           </div>
         </div>
-        {/* Spacer for plan column */}
-        <div className="w-14 flex-shrink-0" />
       </div>
 
       {!collapsed && (

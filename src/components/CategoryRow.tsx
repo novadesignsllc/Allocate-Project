@@ -68,13 +68,13 @@ export default function CategoryRow({ category, isSelected, onSelect, onEmojiCha
       onDragStart={e => { e.stopPropagation(); onCatDragStart(catIndex) }}
       onDragOver={e => { e.stopPropagation(); onCatDragOver(e, catIndex) }}
       onDragEnd={e => { e.stopPropagation(); onCatDragEnd() }}
-      className="flex items-center my-0.5"
+      className="flex items-center my-0.5 pr-2"
       style={{ opacity: isDraggingOver ? 0.7 : 1 }}
     >
     {/* Card row */}
     <div
       onClick={onSelect}
-      className="flex-1 flex items-center gap-2 pl-3 py-2.5 mx-2 cursor-grab transition-all"
+      className="flex-1 flex items-center gap-2 pl-3 py-2.5 ml-2 cursor-grab transition-all"
       style={{
         borderRadius: '10px',
         background: isDraggingOver
@@ -211,18 +211,6 @@ export default function CategoryRow({ category, isSelected, onSelect, onEmojiCha
       </div>
     </div>{/* end card row */}
 
-    {/* Plan icon — separate column with left border divider */}
-    <div
-      className="w-14 flex-shrink-0 flex items-center justify-center self-stretch"
-      style={{ borderLeft: '1px solid var(--color-border)' }}
-    >
-      {category.plan && category.planMet === true && (
-        <span style={{ color: '#34d399', fontSize: '14px', fontWeight: 700 }}>✓</span>
-      )}
-      {category.plan && category.planMet === false && (
-        <span style={{ color: '#f87171', fontSize: '13px', fontWeight: 700 }}>✕</span>
-      )}
-    </div>
     </div>
   )
 }

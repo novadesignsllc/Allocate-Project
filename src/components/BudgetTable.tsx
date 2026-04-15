@@ -62,7 +62,7 @@ export default function BudgetTable({ selectedId, onSelect, groups, onGroupsChan
 
   return (
     <div className="flex-1 overflow-y-auto">
-      {/* Column headers + Create Group button */}
+      {/* Column headers */}
       <div
         className="flex items-center gap-2 px-5 py-2.5 sticky top-0 z-10 backdrop-blur-sm"
         style={{ background: 'var(--bg-main)', borderBottom: '1px solid var(--color-border)' }}
@@ -82,7 +82,6 @@ export default function BudgetTable({ selectedId, onSelect, groups, onGroupsChan
             <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-faint)' }}>Available</span>
           </div>
         </div>
-        <div className="w-14 flex-shrink-0 text-center text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-faint)', borderLeft: '1px solid var(--color-border)' }}>Plan</div>
       </div>
 
       {/* Groups */}
