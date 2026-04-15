@@ -68,6 +68,8 @@ export const mockAccounts = [
   { id: 'amex',           name: 'Amex Gold Card',         type: 'credit' },
 ]
 
+export type RepeatInterval = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
+
 export interface Transaction {
   id: string
   accountId: string
@@ -79,6 +81,7 @@ export interface Transaction {
   inflow: number | null
   cleared: boolean
   reconciled?: boolean
+  repeat?: RepeatInterval
 }
 
 export const mockTransactions: Transaction[] = [

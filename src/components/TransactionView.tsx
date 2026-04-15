@@ -1,6 +1,33 @@
 import { useState, useRef, useEffect } from 'react'
-import type { Transaction, CategoryGroup } from '../data/mockData'
+import type { Transaction, CategoryGroup, RepeatInterval } from '../data/mockData'
 import type { Account } from './Sidebar'
+
+const parseDate = (s: string): Date => { const [m, d, y] = s.split('/'); return new Date(+y, +m - 1, +d) }
+const fmtDate = (d: Date): string => d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
+
+function nextFutureDate(from: Date, interval: RepeatInterval): Date {
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  let d = new Date(from)
+  do {
+    switch (interval) {
+      case 'daily':     d.setDate(d.getDate() + 1); break
+      case 'weekly':    d.setDate(d.getDate() + 7); break
+      case 'monthly':   d.setMonth(d.getMonth() + 1); break
+      case 'quarterly': d.setMonth(d.getMonth() + 3); break
+      case 'yearly':    d.setFullYear(d.getFullYear() + 1); break
+    }
+  } while (d <= today)
+  return d
+}
+
+const REPEAT_OPTIONS: { value: RepeatInterval | null; label: string }[] = [
+  { value: null,        label: 'None'      },
+  { value: 'daily',     label: 'Daily'     },
+  { value: 'weekly',    label: 'Weekly'    },
+  { value: 'monthly',   label: 'Monthly'   },
+  { value: 'quarterly', label: 'Quarterly' },
+  { value: 'yearly',    label: 'Yearly'    },
+]
 
 interface TransactionViewProps {
   accountId: string
@@ -148,7 +175,26 @@ export default function TransactionView({ accountId, accounts, transactions, onT
 
   const handleSave = () => {
     if (selectedId && Object.keys(editDraft).length > 0) {
-      setTxList(prev => prev.map(t => t.id === selectedId ? { ...t, ...editDraft } : t))
+      setTxList(prev => {
+        const updated = prev.map(t => t.id === selectedId ? { ...t, ...editDraft } : t)
+        const saved = updated.find(t => t.id === selectedId)
+        if (saved?.repeat) {
+          const today = new Date(); today.setHours(0, 0, 0, 0)
+          const txDate = parseDate(saved.date)
+          if (txDate <= today) {
+            const nextDate = nextFutureDate(txDate, saved.repeat)
+            const nextStr = fmtDate(nextDate)
+            const duplicate = updated.some(t =>
+              t.id !== saved.id && t.accountId === saved.accountId &&
+              t.payee === saved.payee && t.date === nextStr
+            )
+            if (!duplicate) {
+              return [...updated, { ...saved, id: crypto.randomUUID(), date: nextStr, cleared: false, reconciled: false }]
+            }
+          }
+        }
+        return updated
+      })
     }
     setPendingId(null)
     setEditDraft({})
@@ -755,12 +801,48 @@ export default function TransactionView({ accountId, accounts, transactions, onT
                                   Today
                                 </button>
                               </div>
+
+                              {/* Repeat picker */}
+                              <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--color-border)' }}>
+                                <p className="text-xs font-semibold uppercase tracking-wider mb-2 px-1" style={{ color: 'var(--text-faint)' }}>
+                                  Repeat
+                                </p>
+                                <div className="flex flex-wrap gap-1">
+                                  {REPEAT_OPTIONS.map(({ value, label }) => {
+                                    const active = (editDraft.repeat ?? null) === value
+                                    return (
+                                      <button
+                                        key={label}
+                                        onClick={() => setEditDraft(prev => ({ ...prev, repeat: value ?? undefined }))}
+                                        className="px-2.5 py-1 text-xs rounded-lg font-medium transition-all"
+                                        style={{
+                                          background: active ? 'linear-gradient(135deg, #7c3aed, #2563eb)' : 'var(--bg-hover)',
+                                          color: active ? 'white' : 'var(--text-secondary)',
+                                          border: active ? 'none' : '1px solid var(--color-border)',
+                                          boxShadow: active ? '0 2px 8px rgba(109,40,217,0.35)' : undefined,
+                                        }}
+                                        onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--bg-hover-strong)' }}
+                                        onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'var(--bg-hover)' }}
+                                      >
+                                        {label}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </div>
                             </div>
                           )
                         })()}
                       </div>
                     ) : (
-                      <span className="text-sm font-medium" style={{ color: isFuture ? '#38bdf8' : 'var(--text-secondary)' }}>{tx.date}</span>
+                      <div>
+                        <span className="text-sm font-medium" style={{ color: isFuture ? '#38bdf8' : 'var(--text-secondary)' }}>{tx.date}</span>
+                        {tx.repeat && (
+                          <div className="text-xs mt-0.5 font-medium" style={{ color: 'rgba(167,139,250,0.7)' }}>
+                            ↻ {tx.repeat}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </td>
 

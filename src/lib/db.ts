@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 import type { Account } from '../components/Sidebar'
-import type { CategoryGroup, Transaction, CategoryPlan } from '../data/mockData'
+import type { CategoryGroup, Transaction, CategoryPlan, RepeatInterval } from '../data/mockData'
 
 // ── Date helpers ──────────────────────────────────────────────────
 // App uses MM/DD/YYYY; Supabase date columns use YYYY-MM-DD
@@ -87,6 +87,7 @@ export async function loadAll(userId: string): Promise<AppData> {
     inflow: tx.inflow !== null ? Number(tx.inflow) : null,
     cleared: tx.cleared as boolean,
     reconciled: (tx.reconciled as boolean) ?? false,
+    repeat: (tx.repeat as RepeatInterval) ?? undefined,
   }))
 
   const closedAccountIds = new Set<string>(
@@ -213,6 +214,7 @@ function txToRow(userId: string, tx: Transaction, catNameToId: Map<string, strin
     inflow: tx.inflow,
     cleared: tx.cleared,
     reconciled: tx.reconciled ?? false,
+    repeat: tx.repeat ?? null,
     is_starting_balance: tx.payee === 'Starting Balance',
   }
 }
