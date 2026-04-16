@@ -46,7 +46,9 @@ const fmt = (n: number) =>
 export default function TransactionView({ accountId, accounts, transactions, onTransactionsChange, onCloseAccount, onDeleteAccount, budgetGroups }: TransactionViewProps) {
   const allCategories = [
     { group: 'Inflow', items: ['Money To Budget'] },
-    ...budgetGroups.map(g => ({ group: g.name, items: g.categories.map(c => c.name) })),
+    ...budgetGroups
+      .filter(g => g.name !== 'Credit Card Payments')
+      .map(g => ({ group: g.name, items: g.categories.map(c => c.name) })),
   ]
   const account = accounts.find(a => a.id === accountId)
 
