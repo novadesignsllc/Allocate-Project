@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { Transaction, CategoryGroup, RepeatInterval } from '../data/mockData'
 import type { Account } from './Sidebar'
 
@@ -77,6 +78,9 @@ export default function TransactionView({ accountId, accounts, transactions, onT
   const [showAccountSettings, setShowAccountSettings] = useState(false)
   const [showReconcileConfirm, setShowReconcileConfirm] = useState(false)
   const categoryPickerRef = useRef<HTMLDivElement>(null)
+  const categoryPortalRef = useRef<HTMLDivElement>(null)
+  const categoryBtnRef = useRef<HTMLButtonElement>(null)
+  const [categoryPickerPos, setCategoryPickerPos] = useState<{ top: number; left: number } | null>(null)
   const accountSettingsRef = useRef<HTMLDivElement>(null)
   const datePickerRef = useRef<HTMLDivElement>(null)
   const historyRef = useRef<Transaction[][]>([])
@@ -158,9 +162,9 @@ export default function TransactionView({ accountId, accounts, transactions, onT
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (categoryPickerRef.current && !categoryPickerRef.current.contains(e.target as Node)) {
-        setShowCategoryPicker(false)
-      }
+      const inBtn = categoryPickerRef.current?.contains(e.target as Node)
+      const inPortal = categoryPortalRef.current?.contains(e.target as Node)
+      if (!inBtn && !inPortal) setShowCategoryPicker(false)
     }
     if (showCategoryPicker) document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -925,9 +929,17 @@ export default function TransactionView({ accountId, accounts, transactions, onT
                   {/* CATEGORY */}
                   <td className="px-3 py-1.5 max-w-[200px]">
                     {isSelected ? (
-                      <div className="relative" ref={categoryPickerRef} onClick={e => e.stopPropagation()}>
+                      <div ref={categoryPickerRef} onClick={e => e.stopPropagation()}>
                         <button
-                          onClick={() => { setEditCategory(editDraft.category ?? ''); setShowCategoryPicker(p => !p) }}
+                          ref={categoryBtnRef}
+                          onClick={() => {
+                            setEditCategory(editDraft.category ?? '')
+                            if (!showCategoryPicker && categoryBtnRef.current) {
+                              const r = categoryBtnRef.current.getBoundingClientRect()
+                              setCategoryPickerPos({ top: r.bottom + 4, left: r.left })
+                            }
+                            setShowCategoryPicker(p => !p)
+                          }}
                           className="flex items-center gap-1.5 px-2 py-1 text-sm rounded-lg w-full text-left"
                           style={{
                             background: 'var(--bg-hover-strong)',
@@ -939,17 +951,6 @@ export default function TransactionView({ accountId, accounts, transactions, onT
                           <span className="flex-1 truncate">{editDraft.category ?? 'Pick a category…'}</span>
                           <span className="text-xs" style={{ color: 'var(--text-faint)' }}>▾</span>
                         </button>
-                        {showCategoryPicker && (
-                          <CategoryPicker
-                            value={editCategory}
-                            categories={allCategories}
-                            onSelect={val => {
-                              setEditCategory(val)
-                              setEditDraft(d => ({ ...d, category: val }))
-                              setShowCategoryPicker(false)
-                            }}
-                          />
-                        )}
                       </div>
                     ) : tx.category ? (
                       <span className="text-sm truncate block" style={{ color: 'var(--text-secondary)' }}>{tx.category}</span>
@@ -1086,11 +1087,27 @@ export default function TransactionView({ accountId, accounts, transactions, onT
           </div>
         )}
       </div>
+
+      {/* Category picker portal — renders outside table so it's never clipped */}
+      {showCategoryPicker && categoryPickerPos && createPortal(
+        <CategoryPicker
+          value={editCategory}
+          pos={categoryPickerPos}
+          portalRef={categoryPortalRef}
+          categories={allCategories}
+          onSelect={val => {
+            setEditCategory(val)
+            setEditDraft(d => ({ ...d, category: val }))
+            setShowCategoryPicker(false)
+          }}
+        />,
+        document.body
+      )}
     </div>
   )
 }
 
-function CategoryPicker({ value, onSelect, categories }: { value: string; onSelect: (v: string) => void; categories: { group: string; items: string[] }[] }) {
+function CategoryPicker({ value, onSelect, categories, pos, portalRef }: { value: string; onSelect: (v: string) => void; categories: { group: string; items: string[] }[]; pos: { top: number; left: number }; portalRef: React.RefObject<HTMLDivElement | null> }) {
   const [search, setSearch] = useState('')
 
   const filtered = categories
@@ -1099,10 +1116,12 @@ function CategoryPicker({ value, onSelect, categories }: { value: string; onSele
 
   return (
     <div
-      className="absolute z-50 mt-1 rounded-2xl overflow-hidden"
+      ref={portalRef}
+      className="z-[9999] rounded-2xl overflow-hidden"
       style={{
-        top: '100%',
-        left: 0,
+        position: 'fixed',
+        top: pos.top,
+        left: pos.left,
         minWidth: '260px',
         background: 'var(--bg-surface)',
         border: '1px solid rgba(109,40,217,0.3)',
