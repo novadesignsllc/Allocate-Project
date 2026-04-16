@@ -37,6 +37,7 @@ interface TransactionViewProps {
   onTransactionsChange: (txs: Transaction[]) => void
   onCloseAccount: (id: string) => void
   onDeleteAccount: (id: string) => void
+  onRenameAccount: (id: string, name: string) => void
   budgetGroups: CategoryGroup[]
 }
 
@@ -44,7 +45,7 @@ const fmt = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 
 
-export default function TransactionView({ accountId, accounts, transactions, onTransactionsChange, onCloseAccount, onDeleteAccount, budgetGroups }: TransactionViewProps) {
+export default function TransactionView({ accountId, accounts, transactions, onTransactionsChange, onCloseAccount, onDeleteAccount, onRenameAccount, budgetGroups }: TransactionViewProps) {
   const allCategories = [
     { group: 'Inflow', items: ['Money To Budget'] },
     ...budgetGroups
@@ -76,6 +77,8 @@ export default function TransactionView({ accountId, accounts, transactions, onT
   const [search, setSearch] = useState('')
   const [deleteWarning, setDeleteWarning] = useState(false)
   const [showAccountSettings, setShowAccountSettings] = useState(false)
+  const [renamingAccount, setRenamingAccount] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
   const [showReconcileConfirm, setShowReconcileConfirm] = useState(false)
   const categoryPickerRef = useRef<HTMLDivElement>(null)
   const categoryPortalRef = useRef<HTMLDivElement>(null)
@@ -446,9 +449,9 @@ export default function TransactionView({ accountId, accounts, transactions, onT
           {/* Account settings icon + popover */}
           <div className="relative" ref={accountSettingsRef}>
             <button
-              onClick={() => setShowAccountSettings(p => !p)}
+              onClick={() => { setShowAccountSettings(p => !p); setRenamingAccount(false) }}
               title="Account settings"
-              className="w-7 h-7 flex items-center justify-center text-sm transition-all"
+              className="w-7 h-7 flex items-center justify-center transition-all"
               style={{
                 borderRadius: '8px',
                 color: showAccountSettings ? 'var(--text-primary)' : 'var(--text-faint)',
@@ -457,7 +460,9 @@ export default function TransactionView({ accountId, accounts, transactions, onT
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover-strong)')}
               onMouseLeave={e => { if (!showAccountSettings) e.currentTarget.style.background = 'transparent' }}
             >
-              ⚙
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" clipRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" />
+              </svg>
             </button>
 
             {showAccountSettings && (() => {
@@ -465,7 +470,7 @@ export default function TransactionView({ accountId, accounts, transactions, onT
               const canClose = Math.abs(bal) < 0.01
               return (
                 <div
-                  className="absolute top-full left-0 mt-2 rounded-2xl overflow-hidden z-50"
+                  className="absolute top-full left-0 mt-2 rounded-2xl z-50"
                   style={{
                     minWidth: '220px',
                     background: 'var(--bg-surface)',
@@ -479,6 +484,62 @@ export default function TransactionView({ accountId, accounts, transactions, onT
                     </p>
                   </div>
                   <div className="px-2 pb-2 flex flex-col gap-0.5">
+
+                    {/* Rename */}
+                    {renamingAccount ? (
+                      <div className="px-3 py-2 flex flex-col gap-2">
+                        <input
+                          autoFocus
+                          value={renameValue}
+                          onChange={e => setRenameValue(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && renameValue.trim()) {
+                              onRenameAccount(accountId, renameValue.trim())
+                              setRenamingAccount(false)
+                              setShowAccountSettings(false)
+                            }
+                            if (e.key === 'Escape') setRenamingAccount(false)
+                          }}
+                          className="w-full px-3 py-1.5 text-sm rounded-lg outline-none"
+                          style={{ background: 'var(--bg-hover-strong)', border: '1px solid rgba(109,40,217,0.4)', color: 'var(--text-primary)' }}
+                        />
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => {
+                              if (renameValue.trim()) {
+                                onRenameAccount(accountId, renameValue.trim())
+                                setRenamingAccount(false)
+                                setShowAccountSettings(false)
+                              }
+                            }}
+                            className="flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all"
+                            style={{ background: 'linear-gradient(135deg,#7c3aed,#2563eb)', color: 'white' }}
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setRenamingAccount(false)}
+                            className="px-3 py-1.5 text-xs rounded-lg transition-all"
+                            style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setRenameValue(account?.name ?? ''); setRenamingAccount(true) }}
+                        className="w-full flex items-start px-3 py-2.5 text-sm rounded-xl transition-all"
+                        style={{ color: 'var(--text-primary)' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        Rename Account
+                      </button>
+                    )}
+
+                    <div className="mx-1 my-0.5" style={{ height: '1px', background: 'var(--color-border)' }} />
+
                     <button
                       onClick={() => {
                         if (canClose) {
@@ -504,7 +565,6 @@ export default function TransactionView({ accountId, accounts, transactions, onT
                       )}
                     </button>
 
-                    {/* Divider */}
                     <div className="mx-1 my-0.5" style={{ height: '1px', background: 'var(--color-border)' }} />
 
                     {(() => {
@@ -592,23 +652,6 @@ export default function TransactionView({ accountId, accounts, transactions, onT
         <div className="w-px h-5 mx-1" style={{ background: 'var(--color-border)' }} />
 
         <button
-          onClick={() => setShowReconcileConfirm(true)}
-          className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-all"
-          style={{
-            borderRadius: '10px',
-            border: '1px solid rgba(52,211,153,0.25)',
-            color: '#34d399',
-            background: 'rgba(52,211,153,0.08)',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(52,211,153,0.15)'; e.currentTarget.style.borderColor = 'rgba(52,211,153,0.4)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(52,211,153,0.08)'; e.currentTarget.style.borderColor = 'rgba(52,211,153,0.25)' }}
-        >
-          🔒 Reconcile
-        </button>
-
-        <div className="w-px h-5 mx-1" style={{ background: 'var(--color-border)' }} />
-
-        <button
           onClick={handleUndo}
           className="px-3 py-2 text-sm transition-all"
           style={{ borderRadius: '10px', color: 'var(--text-faint)' }}
@@ -670,6 +713,25 @@ export default function TransactionView({ accountId, accounts, transactions, onT
             <button onClick={() => setSearch('')} style={{ color: 'var(--text-faint)', lineHeight: 1 }}>×</button>
           )}
         </div>
+
+        <button
+          onClick={() => setShowReconcileConfirm(true)}
+          className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-all"
+          style={{
+            borderRadius: '10px',
+            border: '1px solid rgba(52,211,153,0.25)',
+            color: '#34d399',
+            background: 'rgba(52,211,153,0.08)',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(52,211,153,0.15)'; e.currentTarget.style.borderColor = 'rgba(52,211,153,0.4)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(52,211,153,0.08)'; e.currentTarget.style.borderColor = 'rgba(52,211,153,0.25)' }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          Reconcile
+        </button>
       </div>
 
       {/* Table */}

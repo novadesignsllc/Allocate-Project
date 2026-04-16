@@ -444,6 +444,13 @@ function BudgetApp() {
                     if (userId.current) setAccountClosed(id, true).catch(console.error)
                   }}
                   budgetGroups={budgetGroups}
+                  onRenameAccount={(id, name) => {
+                    setAccounts(prev => prev.map(a => a.id === id ? { ...a, name } : a))
+                    if (userId.current) {
+                      const updated = accounts.find(a => a.id === id)
+                      if (updated) saveAccount(userId.current, { ...updated, name }, accounts.findIndex(a => a.id === id)).catch(console.error)
+                    }
+                  }}
                   onDeleteAccount={id => {
                     setAccounts(prev => prev.filter(a => a.id !== id))
                     setClosedAccountIds(prev => { const n = new Set(prev); n.delete(id); return n })
