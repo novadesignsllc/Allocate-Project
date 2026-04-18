@@ -73,3 +73,5 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(124, 58, 237, 0.3); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(124, 58, 237, 0.5); }
+
+.budget-scroll-area::-webkit-scrollbar { display: none; }

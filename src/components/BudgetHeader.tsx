@@ -117,7 +117,7 @@ export default function BudgetHeader({ budgetMonth, onPrev, onNext, onGoToCurren
               style={{ color: overAssigned ? '#f87171' : '#34d399', opacity: 0.85 }}
             >
               {overAssigned && <span>⚠</span>}
-              {overAssigned ? 'Overassigned' : 'Money to Budget'}
+              {overAssigned ? 'Over Allocated' : 'Money to Allocate'}
             </div>
           </div>
         </div>

@@ -4,6 +4,10 @@ import type { Category, CategoryPlan, PlanType } from '../data/mockData'
 interface InspectorPanelProps {
   category: Category | null
   onPlanChange: (catId: string, plan: CategoryPlan | undefined) => void
+  onAssignedChange: (catId: string, value: number) => void
+  onDebtPayoffChange: (catId: string, date: string | undefined) => void
+  monthlyAssigned: Record<string, Record<string, number>>
+  budgetMonth: { year: number; month: number }
 }
 
 const PLAN_TYPES: { type: PlanType; label: string; icon: string; description: string }[] = [
@@ -15,12 +19,16 @@ const PLAN_TYPES: { type: PlanType; label: string; icon: string; description: st
 const fmt = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 
-export default function InspectorPanel({ category, onPlanChange }: InspectorPanelProps) {
+const MONTH_LETTERS = ['J','F','M','A','M','J','J','A','S','O','N','D']
+
+export default function InspectorPanel({ category, onPlanChange, onAssignedChange, onDebtPayoffChange, monthlyAssigned, budgetMonth }: InspectorPanelProps) {
   const [makingPlan, setMakingPlan] = useState(false)
   const [selectedType, setSelectedType] = useState<PlanType | null>(null)
   const [monthlyAmount, setMonthlyAmount] = useState('')
   const [goalAmount, setGoalAmount] = useState('')
   const [goalDate, setGoalDate] = useState('')
+  const [editingDebtPayoff, setEditingDebtPayoff] = useState(false)
+  const [debtPayoffInput, setDebtPayoffInput] = useState('')
 
   // Reset plan editor when category changes
   useEffect(() => {
@@ -29,6 +37,8 @@ export default function InspectorPanel({ category, onPlanChange }: InspectorPane
     setMonthlyAmount('')
     setGoalAmount('')
     setGoalDate('')
+    setEditingDebtPayoff(false)
+    setDebtPayoffInput('')
   }, [category?.id])
 
   // Pre-fill when editing existing plan
@@ -49,7 +59,10 @@ export default function InspectorPanel({ category, onPlanChange }: InspectorPane
 
   const savePlan = () => {
     if (!category || !selectedType) return
-    const plan: CategoryPlan = { type: selectedType }
+    // Preserve existing startDate when editing; set to current month when creating
+    const existingStart = category.plan?.startDate
+    const currentMonthKey = `${budgetMonth.year}-${String(budgetMonth.month).padStart(2, '0')}`
+    const plan: CategoryPlan = { type: selectedType, startDate: existingStart ?? currentMonthKey }
     if (selectedType === 'build') {
       plan.monthlyAmount = parseFloat(monthlyAmount) || 0
     } else if (selectedType === 'spending') {
@@ -93,8 +106,261 @@ export default function InspectorPanel({ category, onPlanChange }: InspectorPane
     )
   }
 
+  const isCCPayment = category.ccStartingBalance !== undefined
   const plan = category.plan
 
+  // ── CC payment category view ──────────────────────────────────────────────
+  if (isCCPayment) {
+    const startingBalance = category.ccStartingBalance ?? 0
+    const uncovered = category.ccStartingUncovered ?? 0
+    const hasUncoveredBalance = uncovered > 0
+    return (
+      <aside
+        className="w-64 flex-shrink-0 flex flex-col overflow-y-auto"
+        style={{ background: 'var(--bg-surface)', borderLeft: '1px solid var(--color-border)' }}
+      >
+        {/* Header */}
+        <div className="p-4" style={{ borderBottom: '1px solid var(--color-border)' }}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xl">💳</span>
+            <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{category.name}</h3>
+          </div>
+          <span className="text-xs" style={{ color: 'var(--text-faint)' }}>Credit card payment</span>
+        </div>
+
+        {/* Starting balance warning — only shown while uncovered */}
+        {hasUncoveredBalance && (
+          <div
+            className="mx-4 mt-4 rounded-xl p-3 space-y-2"
+            style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm">⚠</span>
+              <p className="text-xs font-semibold" style={{ color: '#f87171' }}>Starting balance needs funding</p>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span style={{ color: 'var(--text-faint)' }}>Starting balance</span>
+              <span style={{ color: 'var(--text-secondary)' }}>{fmt(startingBalance)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span style={{ color: 'var(--text-faint)' }}>Still needed</span>
+              <span style={{ color: '#f87171', fontWeight: 600 }}>{fmt(uncovered)}</span>
+            </div>
+            <button
+              onClick={() => onAssignedChange(category.id, category.assigned + uncovered)}
+              className="w-full py-1.5 text-xs font-semibold rounded-lg mt-1 transition-all active:scale-95"
+              style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.35)', color: '#f87171' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.25)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)' }}
+            >
+              Auto Assign {fmt(uncovered)}
+            </button>
+          </div>
+        )}
+
+        {/* Card balance vs available coverage */}
+        {(() => {
+          const cardBalance = category.ccAccountBalance ?? 0
+          const avail = category.available
+          const gap = cardBalance - avail
+          const fullyCovered = avail >= cardBalance
+          return cardBalance > 0 ? (
+            <div
+              className="mx-4 mt-4 rounded-xl p-3 space-y-2"
+              style={{
+                background: fullyCovered ? 'rgba(52,211,153,0.08)' : 'rgba(239,68,68,0.08)',
+                border: `1px solid ${fullyCovered ? 'rgba(52,211,153,0.25)' : 'rgba(239,68,68,0.25)'}`,
+              }}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm">{fullyCovered ? '✓' : '⚠'}</span>
+                <p className="text-xs font-semibold" style={{ color: fullyCovered ? '#34d399' : '#f87171' }}>
+                  {fullyCovered ? 'Fully covered' : `Short ${fmt(gap)}`}
+                </p>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span style={{ color: 'var(--text-faint)' }}>Card balance</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{fmt(cardBalance)}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span style={{ color: 'var(--text-faint)' }}>Available to pay</span>
+                <span style={{ color: avail >= cardBalance ? '#34d399' : avail > 0 ? '#eab308' : '#f87171', fontWeight: 600 }}>
+                  {fmt(avail)}
+                </span>
+              </div>
+            </div>
+          ) : null
+        })()}
+
+        {/* This month stats */}
+        <div className="p-4 mt-2" style={{ borderBottom: '1px solid var(--color-border)' }}>
+          <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-faint)' }}>
+            This Month
+          </p>
+          <div className="space-y-2">
+            {[
+              { label: 'Manually Allocated', value: category.assigned, color: '#a78bfa' },
+              { label: 'Funded from Budget',  value: (category.ccFunding ?? []).reduce((s, f) => s + f.amount, 0), color: '#34d399' },
+              { label: 'Spending',           value: category.activity,  color: '#f87171' },
+              { label: 'Available to Pay',   value: category.available, color: category.available > 0 ? '#34d399' : category.available < 0 ? '#f87171' : 'var(--text-secondary)' },
+            ].map(item => (
+              <div key={item.label} className="flex justify-between items-center">
+                <span className="text-xs" style={{ color: 'var(--text-faint)' }}>{item.label}</span>
+                <span className="text-xs font-medium" style={{ color: item.color }}>
+                  {item.label === 'Spending'
+                    ? item.value === 0 ? fmt(0) : `-${fmt(Math.abs(item.value))}`
+                    : fmt(item.value)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Funding breakdown */}
+        {(category.ccFunding ?? []).length > 0 && (
+          <div className="p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-faint)' }}>
+              Funded By
+            </p>
+            <div className="space-y-1.5">
+              {(category.ccFunding ?? []).map(f => {
+                const full = f.amount >= f.total
+                return (
+                  <div key={f.categoryName} className="flex justify-between items-center gap-2">
+                    <span className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>{f.categoryName}</span>
+                    <span className="text-xs font-medium flex-shrink-0 tabular-nums">
+                      <span style={{ color: full ? '#34d399' : '#f87171' }}>{fmt(f.amount)}</span>
+                      <span style={{ color: 'var(--text-faint)' }}> / </span>
+                      <span style={{ color: '#34d399' }}>{fmt(f.total)}</span>
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Debt Payoff Plan */}
+        <div className="p-4" style={{ borderTop: '1px solid var(--color-border)' }}>
+          <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-faint)' }}>
+            Debt Payoff Plan
+          </p>
+
+          {editingDebtPayoff ? (
+            <div className="space-y-2">
+              <div>
+                <label className="text-xs mb-1 block" style={{ color: 'var(--text-faint)' }}>Target payoff date</label>
+                <input
+                  autoFocus
+                  type="date"
+                  value={debtPayoffInput}
+                  onChange={e => setDebtPayoffInput(e.target.value)}
+                  className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+                  style={{ background: 'var(--bg-hover)', border: '1px solid var(--color-border)', color: 'var(--text-primary)', colorScheme: 'dark' }}
+                />
+              </div>
+              {debtPayoffInput && (() => {
+                const bal = category.ccAccountBalance ?? 0
+                const payoff = new Date(debtPayoffInput + 'T00:00:00')
+                const today = new Date()
+                const months = Math.max(1, (payoff.getFullYear() - today.getFullYear()) * 12 + (payoff.getMonth() - today.getMonth()))
+                const needed = bal / months
+                return (
+                  <div className="rounded-xl px-3 py-2" style={{ background: 'rgba(109,40,217,0.1)', border: '1px solid rgba(139,92,246,0.2)' }}>
+                    <p className="text-xs" style={{ color: 'var(--text-faint)' }}>Monthly payment needed</p>
+                    <p className="text-sm font-semibold" style={{ color: '#c4b5fd' }}>{fmt(needed)} / month</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-faint)' }}>{months} month{months !== 1 ? 's' : ''} remaining</p>
+                  </div>
+                )
+              })()}
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => setEditingDebtPayoff(false)}
+                  className="flex-1 py-2 text-xs font-medium rounded-xl transition-all"
+                  style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover-strong)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (debtPayoffInput) onDebtPayoffChange(category.id, debtPayoffInput)
+                    setEditingDebtPayoff(false)
+                  }}
+                  disabled={!debtPayoffInput}
+                  className="flex-1 py-2 text-xs font-semibold rounded-xl transition-all active:scale-95"
+                  style={{
+                    background: debtPayoffInput ? 'linear-gradient(135deg, #7c3aed, #2563eb)' : 'var(--bg-hover)',
+                    color: debtPayoffInput ? 'white' : 'var(--text-faint)',
+                  }}
+                >
+                  Save Plan
+                </button>
+              </div>
+              {category.debtPayoffDate && (
+                <button
+                  onClick={() => { onDebtPayoffChange(category.id, undefined); setEditingDebtPayoff(false) }}
+                  className="w-full py-1.5 text-xs transition-all"
+                  style={{ color: 'var(--text-faint)' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-faint)')}
+                >
+                  Remove plan
+                </button>
+              )}
+            </div>
+          ) : category.debtPayoffDate ? (() => {
+            const bal = category.ccAccountBalance ?? 0
+            const payoff = new Date(category.debtPayoffDate + 'T00:00:00')
+            const today = new Date()
+            const months = Math.max(1, (payoff.getFullYear() - today.getFullYear()) * 12 + (payoff.getMonth() - today.getMonth()))
+            const needed = bal / months
+            return (
+              <div className="rounded-xl p-3 space-y-1.5" style={{ background: 'rgba(109,40,217,0.1)', border: '1px solid rgba(139,92,246,0.2)' }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold" style={{ color: '#c4b5fd' }}>🎯 Payoff Goal</span>
+                  <button
+                    onClick={() => { setDebtPayoffInput(category.debtPayoffDate!); setEditingDebtPayoff(true) }}
+                    className="text-xs transition-all"
+                    style={{ color: 'var(--text-faint)' }}
+                    onMouseEnter={e => (e.currentTarget.style.color = '#a78bfa')}
+                    onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-faint)')}
+                  >
+                    ✎ Edit
+                  </button>
+                </div>
+                <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  {fmt(needed)} / month
+                </p>
+                <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                  {payoff.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} · {months} month{months !== 1 ? 's' : ''} left
+                </p>
+                {category.planStatus === 'met' && (
+                  <p className="text-xs mt-1" style={{ color: '#34d399' }}>✓ On track this month</p>
+                )}
+                {category.planStatus === 'under' && (
+                  <p className="text-xs mt-1 text-red-400">⚠ Needs {fmt(needed - category.assigned)} more</p>
+                )}
+              </div>
+            )
+          })() : (
+            <button
+              onClick={() => { setDebtPayoffInput(''); setEditingDebtPayoff(true) }}
+              className="w-full py-2 rounded-xl border border-dashed text-xs font-medium transition-all"
+              style={{ borderColor: 'rgba(139,92,246,0.3)', color: '#a78bfa' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(109,40,217,0.1)'; e.currentTarget.style.borderColor = 'rgba(139,92,246,0.5)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'rgba(139,92,246,0.3)' }}
+            >
+              + Set Payoff Goal
+            </button>
+          )}
+        </div>
+      </aside>
+    )
+  }
+
+  // ── Regular category view ─────────────────────────────────────────────────
   return (
     <aside
       className="w-64 flex-shrink-0 flex flex-col overflow-y-auto"
@@ -120,9 +386,9 @@ export default function InspectorPanel({ category, onPlanChange }: InspectorPane
         </p>
         <div className="space-y-2">
           {[
-            { label: 'Assigned', value: category.assigned, color: '#a78bfa' },
-            { label: 'Activity',  value: category.activity,  color: 'var(--text-secondary)' },
-            { label: 'Available', value: category.available, color: category.planMet === false || category.overspent ? '#f87171' : category.planMet === true ? '#34d399' : category.available > 0 ? '#34d399' : 'var(--text-secondary)' },
+            { label: 'Allocated', value: category.assigned, color: '#a78bfa' },
+            { label: 'Activity',  value: category.activity,  color: 'var(--text-faint)' },
+            { label: 'Available', value: category.available, color: category.planStatus === 'under' || category.overspent ? '#f87171' : category.planStatus === 'over' ? '#eab308' : category.planStatus === 'met' ? '#34d399' : category.available > 0 ? '#34d399' : 'var(--text-secondary)' },
           ].map(item => (
             <div key={item.label} className="flex justify-between items-center">
               <span className="text-xs" style={{ color: 'var(--text-faint)' }}>{item.label}</span>
@@ -143,35 +409,147 @@ export default function InspectorPanel({ category, onPlanChange }: InspectorPane
             {/* Show existing plan summary */}
             {plan ? (
               <div
-                className="rounded-xl p-3 mb-3 space-y-1"
+                className="rounded-xl p-3 mb-3"
                 style={{ background: 'rgba(109,40,217,0.1)', border: '1px solid rgba(139,92,246,0.2)' }}
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-semibold" style={{ color: '#c4b5fd' }}>
                     {PLAN_TYPES.find(p => p.type === plan.type)?.icon} {PLAN_TYPES.find(p => p.type === plan.type)?.label}
                   </span>
                 </div>
-                {plan.type === 'build' && (
-                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                    {fmt(plan.monthlyAmount ?? 0)} / month
-                  </p>
-                )}
+
+                {/* Savings: monthly needed + goal */}
+                {plan.type === 'savings' && (() => {
+                  const goalAmt = plan.goalAmount ?? 0
+                  const goalDt = plan.goalDate ? new Date(plan.goalDate + 'T00:00:00') : null
+                  const startDt = plan.startDate
+                    ? (() => { const [sy, sm] = plan.startDate!.split('-').map(Number); return new Date(sy, sm - 1) })()
+                    : new Date(budgetMonth.year, budgetMonth.month - 1)
+                  const totalMonths = goalDt
+                    ? Math.max(1, (goalDt.getFullYear() - startDt.getFullYear()) * 12 + (goalDt.getMonth() - startDt.getMonth()))
+                    : 1
+                  const needed = goalAmt / totalMonths
+                  return (
+                    <>
+                      <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                        {fmt(needed)} / month
+                      </p>
+                      <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                        {fmt(goalAmt)} by {goalDt ? goalDt.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
+                      </p>
+                    </>
+                  )
+                })()}
+
+                {/* Build: monthly amount + progress bar */}
+                {plan.type === 'build' && (() => {
+                  const target = plan.monthlyAmount ?? 0
+                  const assigned = category.assigned
+                  const pct = target > 0 ? Math.min(100, (assigned / target) * 100) : 0
+                  const met = assigned >= target && target > 0
+                  return (
+                    <>
+                      <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                        {fmt(target)} / month
+                      </p>
+                      <div className="mt-2">
+                        <div className="flex justify-between text-xs mb-1">
+                          <span style={{ color: 'var(--text-faint)' }}>This month</span>
+                          <span style={{ color: met ? '#34d399' : 'var(--text-secondary)' }}>
+                            {fmt(assigned)} / {fmt(target)}
+                          </span>
+                        </div>
+                        <div className="rounded-full overflow-hidden" style={{ height: '5px', background: 'rgba(255,255,255,0.08)' }}>
+                          <div
+                            className="h-full rounded-full transition-all duration-300"
+                            style={{
+                              width: `${pct}%`,
+                              background: met ? '#34d399' : 'linear-gradient(90deg, #7c3aed, #2563eb)',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )
+                })()}
+
+                {/* Spending: target */}
                 {plan.type === 'spending' && (
                   <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                     Target: {fmt(plan.monthlyAmount ?? 0)} / month
                   </p>
                 )}
-                {plan.type === 'savings' && (
-                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                    {fmt(plan.goalAmount ?? 0)} by {plan.goalDate ? new Date(plan.goalDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
-                  </p>
+
+                {/* Status badge */}
+                {category.planStatus === 'under' && (
+                  <p className="text-xs text-red-400 flex items-center gap-1 mt-1.5">⚠ Not on track this month</p>
                 )}
-                {category.planMet === false && (
-                  <p className="text-xs text-red-400 flex items-center gap-1 mt-1">⚠ Not on track this month</p>
+                {category.planStatus === 'over' && (
+                  <p className="text-xs flex items-center gap-1 mt-1.5" style={{ color: '#eab308' }}>⚠ Over target — spending covered</p>
                 )}
-                {category.planMet === true && (
-                  <p className="text-xs flex items-center gap-1 mt-1" style={{ color: '#34d399' }}>✓ On track</p>
+                {category.planStatus === 'met' && (
+                  <p className="text-xs flex items-center gap-1 mt-1.5" style={{ color: '#34d399' }}>✓ On track</p>
                 )}
+
+                {/* Monthly calendar (savings + build only) */}
+                {plan.startDate && (plan.type === 'savings' || plan.type === 'build') && (() => {
+                  const [startY, startM] = plan.startDate!.split('-').map(Number)
+                  let endYear: number, endMonth: number
+                  if (plan.type === 'savings' && plan.goalDate) {
+                    const d = new Date(plan.goalDate + 'T00:00:00')
+                    endYear = d.getFullYear(); endMonth = d.getMonth() + 1
+                  } else {
+                    // Build: 12 months from start
+                    let y = startY, m = startM + 11
+                    while (m > 12) { m -= 12; y++ }
+                    endYear = y; endMonth = m
+                  }
+                  const months: string[] = []
+                  let y = startY, m = startM
+                  while ((y < endYear || (y === endYear && m <= endMonth)) && months.length < 36) {
+                    months.push(`${y}-${String(m).padStart(2, '0')}`)
+                    m++; if (m > 12) { m = 1; y++ }
+                  }
+                  const totalMo = months.length
+                  const monthlyRequired = plan.type === 'savings'
+                    ? (plan.goalAmount ?? 0) / Math.max(1, totalMo)
+                    : (plan.monthlyAmount ?? 0)
+                  const half = Math.ceil(months.length / 2)
+                  const col1 = months.slice(0, half)
+                  const col2 = months.slice(half)
+                  return (
+                    <div className="mt-3 pt-2" style={{ borderTop: '1px solid rgba(139,92,246,0.15)' }}>
+                      <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-faint)', letterSpacing: '0.06em' }}>
+                        Timeline
+                      </p>
+                      <div className="flex gap-1.5">
+                        {[col1, col2].map((col, ci) => (
+                          <div key={ci} className="flex-1 space-y-1">
+                            {col.map(mk => {
+                              const [, mm] = mk.split('-').map(Number)
+                              const assigned = monthlyAssigned[mk]?.[category.id] ?? 0
+                              const met = monthlyRequired > 0 && assigned >= monthlyRequired
+                              return (
+                                <div
+                                  key={mk}
+                                  className="flex flex-col items-center py-1 rounded-lg"
+                                  style={{ background: met ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.06)' }}
+                                >
+                                  <span className="text-xs leading-none" style={{ color: 'var(--text-faint)', fontSize: '10px' }}>
+                                    {MONTH_LETTERS[mm - 1]}
+                                  </span>
+                                  <span className="leading-none mt-0.5" style={{ color: met ? '#34d399' : '#f87171', fontSize: '10px' }}>
+                                    {met ? '✓' : '✗'}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             ) : (
               <p className="text-xs mb-3" style={{ color: 'var(--text-faint)' }}>No plan set</p>
