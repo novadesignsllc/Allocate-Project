@@ -47,29 +47,6 @@ const EMOJI_OPTIONS = [
 ]
 
 export default function CategoryRow({ category, isSelected, onSelect, onEmojiChange, onAssignedChange, catIndex, onCatDragStart, onCatDragOver, onCatDragEnd, isDraggingOver, isCCPayment, transactions, budgetMonth }: CategoryRowProps) {
-  // Archived bill categories — render read-only tombstone row
-  if (category.archived) {
-    return (
-      <div className="flex items-center my-0.5 pr-2" style={{ opacity: 0.45 }}>
-        <div className="flex-1 flex items-center gap-2 pl-3 py-2.5 ml-2">
-          <div className="flex-shrink-0 text-sm w-7 h-7 flex items-center justify-center">{category.emoji}</div>
-          <div className="flex-1 min-w-0 flex items-center gap-2">
-            <span className="text-sm truncate" style={{ color: 'var(--text-primary)' }}>{category.name}</span>
-            <span className="text-xs px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(148,163,184,0.12)', color: 'var(--text-faint)', border: '1px solid rgba(148,163,184,0.2)' }}>archived</span>
-          </div>
-          <div className="flex items-center flex-shrink-0">
-            <div style={{ width: '112px' }}><span className="text-sm block w-full text-right pr-3 py-0.5" style={{ color: 'var(--text-faint)' }}>—</span></div>
-            <div style={{ width: '112px' }}><span className="text-sm block w-full text-right pr-3 py-0.5" style={{ color: 'var(--text-faint)' }}>—</span></div>
-            <div style={{ width: '112px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: '2px' }}>
-              <span className="text-sm font-medium px-2.5 py-0.5 inline-flex items-center" style={{ borderRadius: '20px', background: 'rgba(148,163,184,0.1)', color: 'var(--text-faint)', border: '1px solid rgba(148,163,184,0.2)' }}>
-                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(category.available)}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
   const [editingAssigned, setEditingAssigned] = useState(false)
   const assignedInputRef = useRef<HTMLInputElement>(null)
   const [activityPopupPos, setActivityPopupPos] = useState<{ top: number; left: number } | null>(null)
@@ -196,6 +173,30 @@ export default function CategoryRow({ category, isSelected, onSelect, onEmojiCha
   }
 
   const pill = availablePill()
+
+  // Archived bill categories — read-only tombstone row (after all hooks)
+  if (category.archived) {
+    return (
+      <div className="flex items-center my-0.5 pr-2" style={{ opacity: 0.45 }}>
+        <div className="flex-1 flex items-center gap-2 pl-3 py-2.5 ml-2">
+          <div className="flex-shrink-0 text-sm w-7 h-7 flex items-center justify-center">{category.emoji}</div>
+          <div className="flex-1 min-w-0 flex items-center gap-2">
+            <span className="text-sm truncate" style={{ color: 'var(--text-primary)' }}>{category.name}</span>
+            <span className="text-xs px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(148,163,184,0.12)', color: 'var(--text-faint)', border: '1px solid rgba(148,163,184,0.2)' }}>archived</span>
+          </div>
+          <div className="flex items-center flex-shrink-0">
+            <div style={{ width: '112px' }}><span className="text-sm block w-full text-right pr-3 py-0.5" style={{ color: 'var(--text-faint)' }}>—</span></div>
+            <div style={{ width: '112px' }}><span className="text-sm block w-full text-right pr-3 py-0.5" style={{ color: 'var(--text-faint)' }}>—</span></div>
+            <div style={{ width: '112px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: '2px' }}>
+              <span className="text-sm font-medium px-2.5 py-0.5 inline-flex items-center" style={{ borderRadius: '20px', background: 'rgba(148,163,184,0.1)', color: 'var(--text-faint)', border: '1px solid rgba(148,163,184,0.2)' }}>
+                {formatCurrency(category.available)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>
