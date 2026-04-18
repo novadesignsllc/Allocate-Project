@@ -56,6 +56,18 @@ export default function TransactionView({ accountId, accounts, transactions, onT
       .filter(g => g.name !== 'Credit Card Payments')
       .map(g => ({ group: g.name, items: g.categories.map(c => c.name) })),
   ]
+
+  // Returns "Group  /  Category" for display; falls back to just the name if group isn't found
+  const categoryLabel = (catName: string | null | undefined): string => {
+    if (!catName) return ''
+    for (const grp of allCategories) {
+      if (grp.items.includes(catName)) {
+        if (grp.group === 'Inflow') return catName
+        return `${grp.group}  /  ${catName}`
+      }
+    }
+    return catName
+  }
   const account = accounts.find(a => a.id === accountId)
 
   const txList = transactions.filter(t => t.accountId === accountId)
@@ -1014,12 +1026,12 @@ export default function TransactionView({ accountId, accounts, transactions, onT
                             minWidth: '160px',
                           }}
                         >
-                          <span className="flex-1 truncate">{editDraft.category ?? 'Pick a category…'}</span>
+                          <span className="flex-1 truncate">{editDraft.category ? categoryLabel(editDraft.category) : 'Pick a category…'}</span>
                           <span className="text-xs" style={{ color: 'var(--text-faint)' }}>▾</span>
                         </button>
                       </div>
                     ) : tx.category ? (
-                      <span className="text-sm truncate block" style={{ color: 'var(--text-secondary)' }}>{tx.category}</span>
+                      <span className="text-sm truncate block" style={{ color: 'var(--text-secondary)' }}>{categoryLabel(tx.category)}</span>
                     ) : (
                       <span
                         className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-lg"

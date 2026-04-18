@@ -53,6 +53,17 @@ export default function AllTransactionsView({ accounts, transactions, onTransact
       .map(g => ({ group: g.name, items: g.categories.map(c => c.name) })),
   ]
 
+  const categoryLabel = (catName: string | null | undefined): string => {
+    if (!catName) return ''
+    for (const grp of allCategories) {
+      if (grp.items.includes(catName)) {
+        if (grp.group === 'Inflow') return catName
+        return `${grp.group}  /  ${catName}`
+      }
+    }
+    return catName
+  }
+
   const txList = transactions
   const setTxList = (updater: Transaction[] | ((prev: Transaction[]) => Transaction[])) => {
     if (typeof updater === 'function') {
@@ -781,12 +792,12 @@ export default function AllTransactionsView({ accounts, transactions, onTransact
                             minWidth: '140px',
                           }}
                         >
-                          <span className="flex-1 truncate">{editDraft.category ?? 'Pick a category…'}</span>
+                          <span className="flex-1 truncate">{editDraft.category ? categoryLabel(editDraft.category) : 'Pick a category…'}</span>
                           <span className="text-xs" style={{ color: 'var(--text-faint)' }}>▾</span>
                         </button>
                       </div>
                     ) : tx.category ? (
-                      <span className="text-sm truncate block" style={{ color: 'var(--text-secondary)' }}>{tx.category}</span>
+                      <span className="text-sm truncate block" style={{ color: 'var(--text-secondary)' }}>{categoryLabel(tx.category)}</span>
                     ) : (
                       <span
                         className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-lg"
