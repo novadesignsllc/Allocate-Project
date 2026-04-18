@@ -113,8 +113,6 @@ export default function CategoryGroup({
       >
         <div className="w-4 flex-shrink-0" />
         <div className="flex-1 pl-2 flex items-center gap-2" onClick={e => { if (editingName) e.stopPropagation() }}>
-          {isLocked && lockedVariant === 'bills' && <span className="text-sm">🔔</span>}
-          {isLocked && lockedVariant !== 'bills' && <span className="text-sm">💳</span>}
           {editingName && !isLocked ? (
             <input
               autoFocus
