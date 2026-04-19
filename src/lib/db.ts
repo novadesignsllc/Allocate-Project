@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import type { Account } from '../components/Sidebar'
 import type { CategoryGroup, Transaction, CategoryPlan, RepeatInterval } from '../data/mockData'
+import type { BillGroup, BillFrequency } from '../data/billData'
 
 // ── Date helpers ──────────────────────────────────────────────────
 // App uses MM/DD/YYYY; Supabase date columns use YYYY-MM-DD
@@ -23,6 +24,7 @@ export interface AppData {
   budgetGroups: CategoryGroup[]
   monthlyAssigned: Record<string, Record<string, number>>
   transactions: Transaction[]
+  billGroups: BillGroup[]
 }
 
 export async function loadAll(userId: string): Promise<AppData> {
@@ -32,12 +34,16 @@ export async function loadAll(userId: string): Promise<AppData> {
     { data: dbCategories },
     { data: dbBudgetMonths },
     { data: dbTransactions },
+    { data: dbBillGroups },
+    { data: dbBills },
   ] = await Promise.all([
     supabase.from('accounts').select('*').eq('user_id', userId).order('sort_order'),
     supabase.from('category_groups').select('*').eq('user_id', userId).order('sort_order'),
     supabase.from('categories').select('*').eq('user_id', userId).order('sort_order'),
     supabase.from('budget_months').select('*').eq('user_id', userId),
     supabase.from('transactions').select('*').eq('user_id', userId).order('date', { ascending: false }),
+    supabase.from('bill_groups').select('*').eq('user_id', userId).order('sort_order'),
+    supabase.from('bills').select('*').eq('user_id', userId).order('sort_order'),
   ])
 
   // Category ID → name map (for transaction display)
@@ -60,6 +66,8 @@ export async function loadAll(userId: string): Promise<AppData> {
         activity: 0,
         available: 0,
         plan: (c.plan as CategoryPlan) ?? undefined,
+        debtPayoffDate: (c.debt_payoff_date as string) ?? undefined,
+        archived: (c.archived as boolean) ?? false,
       })
     }
   })
@@ -78,7 +86,6 @@ export async function loadAll(userId: string): Promise<AppData> {
     accountId: tx.account_id as string,
     date: fromDbDate(tx.date as string),
     payee: tx.payee as string,
-    // Real categories resolved by name; special categories stored in category_text
     category: tx.category_id
       ? (catIdToName.get(tx.category_id as string) ?? null)
       : ((tx.category_text as string) ?? null),
@@ -89,6 +96,32 @@ export async function loadAll(userId: string): Promise<AppData> {
     reconciled: (tx.reconciled as boolean) ?? false,
     repeat: (tx.repeat as RepeatInterval) ?? undefined,
   }))
+
+  // Build billGroups
+  const billGroupsMap = new Map<string, BillGroup>()
+  ;(dbBillGroups ?? []).forEach(g => {
+    billGroupsMap.set(g.id as string, {
+      id: g.id as string,
+      name: g.name as string,
+      bills: [],
+      collapsed: (g.collapsed as boolean) ?? false,
+    })
+  })
+  ;(dbBills ?? []).forEach(b => {
+    const group = billGroupsMap.get(b.group_id as string)
+    if (group) {
+      group.bills.push({
+        id: b.id as string,
+        name: b.name as string,
+        emoji: (b.emoji as string) || '📋',
+        accountId: (b.account_id as string) || '',
+        frequency: (b.frequency as BillFrequency) || 'monthly',
+        amount: Number(b.amount),
+        dueDate: (b.due_date as string) || '',
+        linkedTransactionId: (b.linked_transaction_id as string) ?? undefined,
+      })
+    }
+  })
 
   const closedAccountIds = new Set<string>(
     (dbAccounts ?? []).filter(a => a.closed).map(a => a.id as string)
@@ -104,6 +137,7 @@ export async function loadAll(userId: string): Promise<AppData> {
     budgetGroups: [...groupsMap.values()],
     monthlyAssigned,
     transactions,
+    billGroups: [...billGroupsMap.values()],
   }
 }
 
@@ -166,7 +200,7 @@ export async function saveGroups(userId: string, groups: CategoryGroup[]): Promi
     groups.map((g, i) => ({ id: g.id, user_id: userId, name: g.name, sort_order: i }))
   )
 
-  const catRows = groups.flatMap((g, _gi) =>
+  const catRows = groups.flatMap((g) =>
     g.categories.map((c, ci) => ({
       id: c.id,
       user_id: userId,
@@ -175,6 +209,8 @@ export async function saveGroups(userId: string, groups: CategoryGroup[]): Promi
       emoji: c.emoji,
       sort_order: ci,
       plan: c.plan ?? null,
+      debt_payoff_date: c.debtPayoffDate ?? null,
+      archived: c.archived ?? false,
     }))
   )
   if (catRows.length > 0) {
@@ -205,7 +241,6 @@ function txToRow(userId: string, tx: Transaction, catNameToId: Map<string, strin
     user_id: userId,
     account_id: tx.accountId,
     category_id: categoryId,
-    // Keep text for special categories ("Money To Budget", credit card names)
     category_text: !categoryId && tx.category ? tx.category : null,
     date: toDbDate(tx.date),
     payee: tx.payee,
@@ -229,4 +264,63 @@ export async function saveTransaction(
 
 export async function removeTransaction(id: string): Promise<void> {
   await supabase.from('transactions').delete().eq('id', id)
+}
+
+// ── Bills ─────────────────────────────────────────────────────────
+
+export async function saveBillGroups(userId: string, groups: BillGroup[]): Promise<void> {
+  // 1. Upsert all current groups
+  if (groups.length > 0) {
+    await supabase.from('bill_groups').upsert(
+      groups.map((g, i) => ({
+        id: g.id,
+        user_id: userId,
+        name: g.name,
+        sort_order: i,
+        collapsed: g.collapsed ?? false,
+      }))
+    )
+  }
+
+  // 2. Upsert all current bills
+  const billRows = groups.flatMap((g) =>
+    g.bills.map((b, bi) => ({
+      id: b.id,
+      user_id: userId,
+      group_id: g.id,
+      name: b.name,
+      emoji: b.emoji,
+      account_id: b.accountId || null,
+      frequency: b.frequency,
+      amount: b.amount,
+      due_date: b.dueDate || null,
+      linked_transaction_id: b.linkedTransactionId ?? null,
+      sort_order: bi,
+    }))
+  )
+  if (billRows.length > 0) {
+    await supabase.from('bills').upsert(billRows)
+  }
+
+  // 3. Delete bills that were removed
+  const currentBillIds = billRows.map(b => b.id)
+  const { data: existingBills } = await supabase
+    .from('bills').select('id').eq('user_id', userId)
+  const billsToDelete = (existingBills ?? [])
+    .map(b => b.id as string)
+    .filter(id => !currentBillIds.includes(id))
+  if (billsToDelete.length > 0) {
+    await supabase.from('bills').delete().in('id', billsToDelete)
+  }
+
+  // 4. Delete groups that were removed (cascade removes their bills too)
+  const currentGroupIds = groups.map(g => g.id)
+  const { data: existingGroups } = await supabase
+    .from('bill_groups').select('id').eq('user_id', userId)
+  const groupsToDelete = (existingGroups ?? [])
+    .map(g => g.id as string)
+    .filter(id => !currentGroupIds.includes(id))
+  if (groupsToDelete.length > 0) {
+    await supabase.from('bill_groups').delete().in('id', groupsToDelete)
+  }
 }

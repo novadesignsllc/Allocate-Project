@@ -100,15 +100,17 @@ export default function IncomeView({ transactions, accounts, gradientColors }: I
     [incomeTxs]
   )
 
-  // Chart constants
-  const CHART_H = 160
-  const LEFT_PAD = 62   // room for Y-axis dollar labels
+  // Chart constants — bars live in a viewBox of "0 0 N 100"
+  // (1 unit wide per month, 100 units tall). preserveAspectRatio="none"
+  // lets it fill the container freely; height is fixed via CSS.
+  const CHART_H = 168  // px
   const N = Math.max(monthlyData.length, 1)
-  // Each month gets at least 44px, max 72px in viewBox coords
-  const GROUP_W = Math.min(72, Math.max(44, 640 / N))
-  const VW = GROUP_W * N
-  const BAR_W = Math.min(20, Math.floor(GROUP_W * 0.30))
-  const BAR_GAP = Math.max(3, Math.floor(GROUP_W * 0.06))
+  const MIN_COL_PX = 40  // minimum px per month before scrolling kicks in
+  const chartMinWidth = N * MIN_COL_PX
+
+  // Short label for Y axis
+  const fmtShort = (n: number) =>
+    n >= 1000 ? `$${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : `$${Math.round(n)}`
 
   return (
     <div className="flex flex-col h-full min-h-0" style={{ background: 'var(--bg-main)' }}>
@@ -176,78 +178,88 @@ export default function IncomeView({ transactions, accounts, gradientColors }: I
                 </div>
               </div>
 
-              <svg
-                viewBox={`${-LEFT_PAD} 0 ${VW + LEFT_PAD} ${CHART_H + 28}`}
-                width="100%"
-                style={{ display: 'block', overflow: 'visible' }}
-              >
-                {/* Horizontal grid lines */}
-                {[0.25, 0.5, 0.75, 1].map(frac => {
-                  const y = Math.round(CHART_H * (1 - frac))
-                  const label = fmt(maxValue * frac).replace(/\.00$/, '')
-                  return (
-                    <g key={frac}>
-                      <line x1={0} y1={y} x2={VW} y2={y} stroke="var(--color-border)" strokeWidth={0.75} strokeDasharray="3 3" />
-                      <text x={-8} y={y + 4} textAnchor="end" fontSize={9} fill="var(--text-faint)" fontFamily="system-ui">
-                        {label}
-                      </text>
-                    </g>
-                  )
-                })}
+              {/* Chart: Y labels + scrollable bars side by side */}
+              <div className="flex gap-2">
+                {/* Y-axis labels — HTML, never clipped */}
+                <div className="flex-shrink-0 flex flex-col justify-between pb-6" style={{ width: 38, height: CHART_H + 24 }}>
+                  {[1, 0.75, 0.5, 0.25, 0].map(frac => (
+                    <span key={frac} style={{ fontSize: 9, color: 'var(--text-faint)', lineHeight: 1, textAlign: 'right', display: 'block' }}>
+                      {fmtShort(maxValue * frac)}
+                    </span>
+                  ))}
+                </div>
 
-                {/* Bars */}
-                {monthlyData.map((m, i) => {
-                  const cx = i * GROUP_W + GROUP_W / 2
-                  const incomeH = Math.round((m.income / maxValue) * CHART_H)
-                  const spendH = Math.round((m.spending / maxValue) * CHART_H)
-                  const xIncome = Math.round(cx - BAR_W - BAR_GAP / 2)
-                  const xSpend = Math.round(cx + BAR_GAP / 2)
-                  const isCurrentMonth = m.year === new Date().getFullYear() && m.month === new Date().getMonth() + 1
-
-                  return (
-                    <g key={`${m.year}-${m.month}`}>
-                      {/* Income bar */}
-                      {incomeH > 0 && (
-                        <rect
-                          x={xIncome} y={CHART_H - incomeH}
-                          width={BAR_W} height={incomeH}
-                          rx={3} fill="#34d399" fillOpacity={0.85}
+                {/* Scrollable bar area */}
+                <div className="flex-1 overflow-x-auto">
+                  <div style={{ minWidth: chartMinWidth }}>
+                    {/* Bars + grid lines */}
+                    <div style={{ position: 'relative', height: CHART_H }}>
+                      {/* Dashed grid lines at 25 / 50 / 75 % */}
+                      {[0.25, 0.5, 0.75].map(frac => (
+                        <div
+                          key={frac}
+                          style={{
+                            position: 'absolute', left: 0, right: 0,
+                            top: `${(1 - frac) * 100}%`,
+                            borderTop: '1px dashed var(--color-border)',
+                            pointerEvents: 'none',
+                          }}
                         />
-                      )}
-                      {incomeH === 0 && (
-                        <rect x={xIncome} y={CHART_H - 2} width={BAR_W} height={2} rx={1} fill="#34d399" fillOpacity={0.2} />
-                      )}
+                      ))}
+                      {/* Baseline */}
+                      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, borderTop: '1px solid var(--color-border)' }} />
 
-                      {/* Spending bar */}
-                      {spendH > 0 && (
-                        <rect
-                          x={xSpend} y={CHART_H - spendH}
-                          width={BAR_W} height={spendH}
-                          rx={3} fill="#f87171" fillOpacity={0.75}
-                        />
-                      )}
-                      {spendH === 0 && (
-                        <rect x={xSpend} y={CHART_H - 2} width={BAR_W} height={2} rx={1} fill="#f87171" fillOpacity={0.2} />
-                      )}
-
-                      {/* Month label */}
-                      <text
-                        x={cx} y={CHART_H + 18}
-                        textAnchor="middle"
-                        fontSize={10}
-                        fontFamily="system-ui"
-                        fontWeight={isCurrentMonth ? 600 : 400}
-                        fill={isCurrentMonth ? 'var(--text-secondary)' : 'var(--text-faint)'}
+                      {/* SVG bars — viewBox "0 0 N 100", preserveAspectRatio="none" so height is fully CSS-controlled */}
+                      <svg
+                        viewBox={`0 0 ${N} 100`}
+                        preserveAspectRatio="none"
+                        width="100%"
+                        height="100%"
+                        style={{ display: 'block' }}
                       >
-                        {m.label}
-                      </text>
-                    </g>
-                  )
-                })}
+                        {monthlyData.map((m, i) => {
+                          const incomeH = (m.income / maxValue) * 100
+                          const spendH  = (m.spending / maxValue) * 100
+                          return (
+                            <g key={`${m.year}-${m.month}`}>
+                              {incomeH > 0
+                                ? <rect x={i + 0.12} y={100 - incomeH} width={0.34} height={incomeH} rx={0.15} fill="#34d399" fillOpacity={0.85} />
+                                : <rect x={i + 0.12} y={99} width={0.34} height={1} rx={0.1} fill="#34d399" fillOpacity={0.2} />
+                              }
+                              {spendH > 0
+                                ? <rect x={i + 0.54} y={100 - spendH} width={0.34} height={spendH} rx={0.15} fill="#f87171" fillOpacity={0.75} />
+                                : <rect x={i + 0.54} y={99} width={0.34} height={1} rx={0.1} fill="#f87171" fillOpacity={0.2} />
+                              }
+                            </g>
+                          )
+                        })}
+                      </svg>
+                    </div>
 
-                {/* Baseline */}
-                <line x1={0} y1={CHART_H} x2={VW} y2={CHART_H} stroke="var(--color-border)" strokeWidth={1} />
-              </svg>
+                    {/* Month labels — one flex child per month */}
+                    <div className="flex mt-1">
+                      {monthlyData.map(m => {
+                        const isCurrentMonth = m.year === new Date().getFullYear() && m.month === new Date().getMonth() + 1
+                        return (
+                          <div
+                            key={`${m.year}-${m.month}`}
+                            style={{
+                              flex: 1,
+                              textAlign: 'center',
+                              fontSize: 10,
+                              fontFamily: 'system-ui',
+                              fontWeight: isCurrentMonth ? 600 : 400,
+                              color: isCurrentMonth ? 'var(--text-secondary)' : 'var(--text-faint)',
+                            }}
+                          >
+                            {m.label}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* ── Two-column layout: sources + recent ── */}

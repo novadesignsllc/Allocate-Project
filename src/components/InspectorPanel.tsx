@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { Category, CategoryPlan, PlanType } from '../data/mockData'
+import DatePickerButton from './DatePickerButton'
 
 interface InspectorPanelProps {
   category: Category | null
@@ -250,13 +251,11 @@ export default function InspectorPanel({ category, onPlanChange, onAssignedChang
             <div className="space-y-2">
               <div>
                 <label className="text-xs mb-1 block" style={{ color: 'var(--text-faint)' }}>Target payoff date</label>
-                <input
-                  autoFocus
-                  type="date"
+                <DatePickerButton
                   value={debtPayoffInput}
-                  onChange={e => setDebtPayoffInput(e.target.value)}
-                  className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                  style={{ background: 'var(--bg-hover)', border: '1px solid var(--color-border)', color: 'var(--text-primary)', colorScheme: 'dark' }}
+                  onChange={setDebtPayoffInput}
+                  placeholder="Select target date"
+                  className="w-full"
                 />
               </div>
               {debtPayoffInput && (() => {
@@ -646,12 +645,11 @@ export default function InspectorPanel({ category, onPlanChange, onAssignedChang
                 </div>
                 <div>
                   <label className="text-xs mb-1 block" style={{ color: 'var(--text-faint)' }}>Target date</label>
-                  <input
-                    type="date"
+                  <DatePickerButton
                     value={goalDate}
-                    onChange={e => setGoalDate(e.target.value)}
-                    className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                    style={{ background: 'var(--bg-hover)', border: '1px solid var(--color-border)', color: 'var(--text-primary)' }}
+                    onChange={setGoalDate}
+                    placeholder="Select target date"
+                    className="w-full"
                   />
                 </div>
                 {monthlyNeeded !== null && (

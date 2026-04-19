@@ -12,7 +12,7 @@ import BillsView from './components/BillsView'
 import IncomeView from './components/IncomeView'
 import LoginPage from './components/LoginPage'
 import { supabase } from './lib/supabase'
-import { loadAll, seedDefaultBudget, saveAccount, setAccountClosed, removeAccount, saveGroups, saveAssigned, saveTransaction, removeTransaction } from './lib/db'
+import { loadAll, seedDefaultBudget, saveAccount, setAccountClosed, removeAccount, saveGroups, saveAssigned, saveTransaction, removeTransaction, saveBillGroups } from './lib/db'
 import { mockBudgetData } from './data/mockData'
 import type { CategoryGroup, Transaction, CategoryPlan } from './data/mockData'
 import { mockBillGroups, toMonthly, getNextPaymentDate } from './data/billData'
@@ -116,13 +116,17 @@ function BudgetApp() {
   const [newType, setNewType] = useState('checking')
   const [loading, setLoading] = useState(true)
   const [dataReady, setDataReady] = useState(false)
-  const [billGroups, setBillGroups] = useState<BillGroup[]>(mockBillGroups)
+  const [billGroups, setBillGroups] = useState<BillGroup[]>([])
   const [appToast, setAppToast] = useState<{ title: string; subtitle: string } | null>(null)
 
   const billLinkedTxIds = useMemo(
     () => new Set(billGroups.flatMap(g => g.bills.flatMap(b => b.linkedTransactionId ? [b.linkedTransactionId] : []))),
     [billGroups]
   )
+
+  // Keep a ref to billGroups so the tx→bill sync effect can read current state synchronously
+  const billGroupsRef = useRef(billGroups)
+  useEffect(() => { billGroupsRef.current = billGroups }, [billGroups])
 
   // When bills change, archive budget categories for deleted bills that have transactions
   const handleBillGroupsChange = (newGroups: BillGroup[]) => {
@@ -168,32 +172,32 @@ function BudgetApp() {
   // Transaction → Bill sync: when a linked transaction is edited or deleted, reflect it in the bill
   useEffect(() => {
     if (!dataReady) return
-    let toastNeeded = false
-    setBillGroups(prevBills => {
-      let anyUpdated = false
-      const next = prevBills.map(g => ({
-        ...g,
-        bills: g.bills.map(b => {
-          if (!b.linkedTransactionId) return b
-          const tx = transactions.find(t => t.id === b.linkedTransactionId)
-          if (!tx) {
-            // Linked transaction was deleted — unlink so next save can create a fresh one
-            anyUpdated = true
-            return { ...b, linkedTransactionId: undefined }
-          }
-          if (tx.outflow === null) return b
-          const parts = tx.date.split('/')
-          const isoDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`
-          // Only amount and date are user-editable from the transaction side
-          if (tx.outflow === b.amount && isoDate === b.dueDate) return b
+    // Use ref so we read current state synchronously — updater functions run async in React 18
+    const currentBills = billGroupsRef.current
+    let anyUpdated = false
+    const nextBills = currentBills.map(g => ({
+      ...g,
+      bills: g.bills.map(b => {
+        if (!b.linkedTransactionId) return b
+        const tx = transactions.find(t => t.id === b.linkedTransactionId)
+        if (!tx) {
+          // Linked transaction was deleted — unlink so next save can create a fresh one
           anyUpdated = true
-          return { ...b, amount: tx.outflow, dueDate: isoDate }
-        }),
-      }))
-      if (anyUpdated) toastNeeded = true
-      return anyUpdated ? next : prevBills
-    })
-    if (toastNeeded) setAppToast({ title: 'Bill synced', subtitle: 'Transaction changes reflected in your bill' })
+          return { ...b, linkedTransactionId: undefined }
+        }
+        if (tx.outflow === null) return b
+        const parts = tx.date.split('/')
+        const isoDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`
+        // Only amount and date are user-editable from the transaction side
+        if (tx.outflow === b.amount && isoDate === b.dueDate) return b
+        anyUpdated = true
+        return { ...b, amount: tx.outflow, dueDate: isoDate }
+      }),
+    }))
+    if (anyUpdated) {
+      setBillGroups(nextBills)
+      setAppToast({ title: 'Bill synced', subtitle: 'Transaction changes reflected in your bill' })
+    }
   }, [transactions, dataReady])
 
   const isResizing = useRef(false)
@@ -218,6 +222,8 @@ function BudgetApp() {
         setTransactions(data.transactions)
         setClosedAccountIds(data.closedAccountIds)
         setMonthlyAssigned(data.monthlyAssigned)
+        // Use saved bills if any exist, otherwise fall back to mock data for first-time users
+        setBillGroups(data.billGroups.length > 0 ? data.billGroups : mockBillGroups)
       } catch (e) {
         console.error('Failed to load data:', e)
       } finally {
@@ -260,6 +266,17 @@ function BudgetApp() {
       saveGroups(uid, budgetGroups).catch(console.error)
     }, 600)
   }, [budgetGroups])
+
+  // ── Sync bills to Supabase on change (debounced) ─────────────────
+  const billsSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (!dataLoaded.current || !userId.current) return
+    const uid = userId.current
+    if (billsSaveTimer.current) clearTimeout(billsSaveTimer.current)
+    billsSaveTimer.current = setTimeout(() => {
+      saveBillGroups(uid, billGroups).catch(console.error)
+    }, 600)
+  }, [billGroups])
 
   // ── Bills → Budget group sync ──────────────────────────────────
   // When bills change, keep the locked "Bills" budget group in sync.

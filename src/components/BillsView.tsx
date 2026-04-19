@@ -4,6 +4,7 @@ import type { Account } from './Sidebar'
 import type { Transaction } from '../data/mockData'
 import type { Bill, BillGroup, BillFrequency } from '../data/billData'
 import { toMonthly, FREQ_CONFIG, EMOJI_PRESETS, getNextPaymentDate, formatNextDate, nextDateUrgency } from '../data/billData'
+import DatePickerButton from './DatePickerButton'
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
@@ -314,19 +315,12 @@ function BillRow({ bill, isSelected, isPending, onSelect, onSave, onCancel, acco
         </div>
 
         {/* Due date */}
-        <input
-          type="date"
+        <DatePickerButton
           value={dueDate}
-          onChange={e => setDueDate(e.target.value)}
-          onClick={e => e.stopPropagation()}
-          className="flex-shrink-0 px-2.5 py-1.5 text-sm rounded-xl outline-none"
-          style={{
-            background: 'var(--bg-hover-strong)',
-            border: '1px solid rgba(109,40,217,0.35)',
-            color: dueDate ? 'var(--text-primary)' : 'var(--text-faint)',
-            colorScheme: 'dark',
-            width: '142px',
-          }}
+          onChange={setDueDate}
+          placeholder="Due date"
+          className="flex-shrink-0"
+          style={{ width: '160px' }}
         />
 
         <div className="flex-1" />
