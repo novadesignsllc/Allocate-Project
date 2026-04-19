@@ -18,9 +18,16 @@ export default function LoginPage() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center"
+      className="min-h-screen flex items-center justify-center relative"
       style={{ background: 'var(--bg-main)' }}
     >
+      {/* Version badge — bottom left */}
+      <div
+        className="absolute bottom-5 left-5 text-xs font-medium select-none"
+        style={{ color: 'rgba(255,255,255,0.2)', letterSpacing: '0.02em' }}
+      >
+        beta 1.0.1
+      </div>
       <div
         className="w-full max-w-sm rounded-3xl p-8 space-y-6"
         style={{

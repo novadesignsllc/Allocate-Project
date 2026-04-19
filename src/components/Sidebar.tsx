@@ -438,6 +438,12 @@ export default function Sidebar({ activeView, onViewChange, isDark, onThemeToggl
                   <span>↪</span>
                   <span className="font-medium">Sign Out</span>
                 </button>
+                <p
+                  className="text-center mt-2 select-none"
+                  style={{ fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: '0.03em' }}
+                >
+                  beta 1.0.1
+                </p>
               </div>
             </div>
           )}
