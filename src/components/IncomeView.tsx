@@ -42,9 +42,8 @@ export default function IncomeView({ transactions, accounts, gradientColors }: I
     return [...map.entries()].sort((a, b) => b[1] - a[1])
   }, [incomeTxs])
 
-  // ── Monthly chart data — from first income month through today ───
+  // ── Monthly chart data — always 12 months from first income month ─
   const monthlyData = useMemo(() => {
-    // Find the earliest month where income was logged
     const incomeDates = transactions
       .filter(t => t.category === 'Income' && (t.inflow ?? 0) > 0)
       .map(t => parseTxDate(t.date))
@@ -57,14 +56,12 @@ export default function IncomeView({ transactions, accounts, gradientColors }: I
       incomeDates[0]
     )
 
-    const now = new Date()
-    const endYear = now.getFullYear()
-    const endMonth = now.getMonth() + 1
-
     const result: { label: string; year: number; month: number; income: number; spending: number }[] = []
     let y = earliest.year, m = earliest.month
 
-    while (y < endYear || (y === endYear && m <= endMonth)) {
+    // Fixed 12-month window starting from the first income month.
+    // Future months will simply have 0 income/spending until data arrives.
+    for (let i = 0; i < 12; i++) {
       const income = transactions
         .filter(t => {
           if (t.category !== 'Income' || (t.inflow ?? 0) <= 0) return false

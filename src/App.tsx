@@ -246,6 +246,7 @@ function BudgetApp() {
       setAccounts(seeded.accounts)
       setTransactions(seeded.transactions)
       setBillGroups(seeded.billGroups)
+      setMonthlyAssigned(seeded.monthlyAssigned)
     }
     localStorage.setItem(`onboarding_complete_${uid}`, 'true')
     setShowOnboarding(false)
