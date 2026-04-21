@@ -236,8 +236,13 @@ export async function saveAssigned(
 
 // ── Transactions ──────────────────────────────────────────────────
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 function txToRow(userId: string, tx: Transaction, catNameToId: Map<string, string>) {
-  const categoryId = tx.category ? (catNameToId.get(tx.category) ?? null) : null
+  // Only use category_id if it resolves to a real DB UUID.
+  // Synthetic IDs like "cc-payment-<accountId>" exist in state but not in the DB.
+  const rawId = tx.category ? (catNameToId.get(tx.category) ?? null) : null
+  const categoryId = rawId && UUID_RE.test(rawId) ? rawId : null
   return {
     id: tx.id,
     user_id: userId,
