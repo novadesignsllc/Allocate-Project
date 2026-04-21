@@ -583,6 +583,7 @@ export async function resetUserData(userId: string): Promise<void> {
   await supabase.from('categories').delete().eq('user_id', userId)
   await supabase.from('category_groups').delete().eq('user_id', userId)
   await supabase.from('accounts').delete().eq('user_id', userId)
+  await supabase.from('profiles').delete().eq('user_id', userId)
 }
 
 // ── Bills ─────────────────────────────────────────────────────────
