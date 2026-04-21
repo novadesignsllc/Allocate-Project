@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Transaction } from '../data/mockData'
 import { supabase } from '../lib/supabase'
+import AccountSettingsModal from './AccountSettingsModal'
 
 export interface Account {
   id: string
@@ -38,10 +39,7 @@ export default function Sidebar({ activeView, onViewChange, isDark, onThemeToggl
   const setAccounts = onAccountsChange
   const [showSettings, setShowSettings] = useState(false)
   const [showClosed, setShowClosed] = useState(false)
-  // Reset flow: 0 = idle, 1 = warning shown, 2 = type-to-confirm
-  const [resetPhase, setResetPhase] = useState<0 | 1 | 2>(0)
-  const [resetText, setResetText] = useState('')
-  const [resetBusy, setResetBusy] = useState(false)
+  const [showAccountSettings, setShowAccountSettings] = useState(false)
   const dragIndex = useRef<number | null>(null)
   const dragOverIndex = useRef<number | null>(null)
   const settingsRef = useRef<HTMLDivElement>(null)
@@ -329,23 +327,6 @@ export default function Sidebar({ activeView, onViewChange, isDark, onThemeToggl
                 boxShadow: '0 -8px 32px rgba(0,0,0,0.3), 0 0 0 1px rgba(109,40,217,0.2)',
               }}
             >
-              <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-faint)' }}>
-                Display Name
-              </p>
-              <input
-                value={displayName}
-                onChange={e => onDisplayNameChange(e.target.value)}
-                placeholder="Enter your name"
-                className="w-full px-3 py-2 text-sm rounded-xl outline-none mb-4"
-                style={{
-                  background: 'var(--bg-hover)',
-                  border: '1px solid var(--color-border)',
-                  color: 'var(--text-primary)',
-                }}
-                onFocus={e => (e.currentTarget.style.border = '1px solid rgba(109,40,217,0.5)')}
-                onBlur={e => (e.currentTarget.style.border = '1px solid var(--color-border)')}
-              />
-
               <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-faint)' }}>
                 Appearance
               </p>
@@ -455,8 +436,22 @@ export default function Sidebar({ activeView, onViewChange, isDark, onThemeToggl
 
               <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                 <button
-                  onClick={() => supabase.auth.signOut()}
+                  onClick={() => { setShowAccountSettings(true); setShowSettings(false) }}
                   className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all"
+                  style={{ color: 'rgba(255,255,255,0.7)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <circle cx="7" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.2"/>
+                    <path d="M2 12c0-2.21 2.239-4 5-4s5 1.79 5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                  </svg>
+                  <span className="font-medium">Account Settings</span>
+                </button>
+
+                <button
+                  onClick={() => supabase.auth.signOut()}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all mt-1"
                   style={{ color: '#f87171' }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.1)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -464,107 +459,6 @@ export default function Sidebar({ activeView, onViewChange, isDark, onThemeToggl
                   <span>↪</span>
                   <span className="font-medium">Sign Out</span>
                 </button>
-
-                {/* ── Reset Account ── */}
-                {resetPhase === 0 && (
-                  <button
-                    onClick={() => setResetPhase(1)}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all mt-1"
-                    style={{ color: 'rgba(251,191,36,0.7)' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(251,191,36,0.08)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <span>⚠</span>
-                    <span className="font-medium">Reset Account Data</span>
-                  </button>
-                )}
-
-                {resetPhase === 1 && (
-                  <div
-                    className="mt-2 rounded-xl p-3"
-                    style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}
-                  >
-                    <p className="text-xs font-semibold mb-1" style={{ color: '#f87171' }}>
-                      Reset all account data?
-                    </p>
-                    <p className="text-xs mb-3" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                      This will permanently delete all your accounts, transactions, budget categories, and bills. Your login is kept. This cannot be undone.
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setResetPhase(0)}
-                        className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
-                        style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.6)' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.12)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => setResetPhase(2)}
-                        className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                        style={{ background: 'rgba(239,68,68,0.2)', color: '#f87171' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.3)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.2)')}
-                      >
-                        Yes, continue
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {resetPhase === 2 && (
-                  <div
-                    className="mt-2 rounded-xl p-3"
-                    style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}
-                  >
-                    <p className="text-xs mb-2" style={{ color: 'rgba(255,255,255,0.55)' }}>
-                      Type <span style={{ color: '#f87171', fontFamily: 'monospace' }}>RESET</span> to confirm
-                    </p>
-                    <input
-                      type="text"
-                      value={resetText}
-                      onChange={e => setResetText(e.target.value)}
-                      placeholder="RESET"
-                      className="w-full rounded-lg px-3 py-1.5 text-xs outline-none mb-2"
-                      style={{
-                        background: 'rgba(255,255,255,0.07)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        color: 'rgba(255,255,255,0.85)',
-                        fontFamily: 'monospace',
-                      }}
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => { setResetPhase(0); setResetText('') }}
-                        className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
-                        style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.6)' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.12)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        disabled={resetText !== 'RESET' || resetBusy}
-                        onClick={async () => {
-                          setResetBusy(true)
-                          await onResetAccount()
-                          setResetPhase(0)
-                          setResetText('')
-                          setResetBusy(false)
-                        }}
-                        className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                        style={{
-                          background: resetText === 'RESET' ? 'rgba(239,68,68,0.75)' : 'rgba(239,68,68,0.15)',
-                          color: resetText === 'RESET' ? 'white' : 'rgba(239,68,68,0.35)',
-                          cursor: resetText === 'RESET' ? 'pointer' : 'not-allowed',
-                        }}
-                      >
-                        {resetBusy ? 'Resetting…' : 'Reset Everything'}
-                      </button>
-                    </div>
-                  </div>
-                )}
 
                 <p
                   className="text-center mt-2 select-none"
@@ -594,6 +488,15 @@ export default function Sidebar({ activeView, onViewChange, isDark, onThemeToggl
       </div>
 
 
+      {showAccountSettings && (
+        <AccountSettingsModal
+          displayName={displayName}
+          onDisplayNameChange={onDisplayNameChange}
+          onResetAccount={onResetAccount}
+          onClose={() => setShowAccountSettings(false)}
+          isDark={true}
+        />
+      )}
     </aside>
   )
 }
