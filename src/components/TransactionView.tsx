@@ -67,9 +67,20 @@ export default function TransactionView({ accountId, accounts, transactions, onT
         return `${grp.group}  /  ${catName}`
       }
     }
+    // CC payment categories are filtered from allCategories — handle them explicitly
+    const ccGroup = budgetGroups.find(g => g.name === 'Credit Card Payments')
+    if (ccGroup?.categories.some(c => c.name === catName)) {
+      return `Credit Card Payments  /  ${catName}`
+    }
     return catName
   }
   const account = accounts.find(a => a.id === accountId)
+
+  // Deduplicated payee list from all transactions + all account names
+  const payeeSet = new Set<string>()
+  transactions.forEach(t => { if (t.payee && t.payee !== 'Starting Balance') payeeSet.add(t.payee) })
+  accounts.forEach(a => payeeSet.add(a.name))
+  const payeeList = [...payeeSet].sort((a, b) => a.localeCompare(b))
 
   const txList = transactions.filter(t => t.accountId === accountId)
   const otherTx = transactions.filter(t => t.accountId !== accountId)
@@ -97,12 +108,18 @@ export default function TransactionView({ accountId, accounts, transactions, onT
   const [renamingAccount, setRenamingAccount] = useState(false)
   const [renameValue, setRenameValue] = useState('')
   const [showReconcileConfirm, setShowReconcileConfirm] = useState(false)
+  const [isPaymentMode, setIsPaymentMode] = useState(false)
+  const [paymentFromAccountId, setPaymentFromAccountId] = useState('')
+  const [showPayeeSuggestions, setShowPayeeSuggestions] = useState(false)
+  const [payeeSuggestPos, setPayeeSuggestPos] = useState<{ top: number; left: number; width: number } | null>(null)
   const categoryPickerRef = useRef<HTMLDivElement>(null)
   const categoryPortalRef = useRef<HTMLDivElement>(null)
   const categoryBtnRef = useRef<HTMLButtonElement>(null)
   const [categoryPickerPos, setCategoryPickerPos] = useState<{ top: number; left: number } | null>(null)
   const accountSettingsRef = useRef<HTMLDivElement>(null)
   const datePickerRef = useRef<HTMLDivElement>(null)
+  const payeeInputRef = useRef<HTMLInputElement>(null)
+  const payeeSuggestRef = useRef<HTMLDivElement>(null)
   const historyRef = useRef<Transaction[][]>([])
   const futureRef  = useRef<Transaction[][]>([])
 
@@ -144,6 +161,9 @@ export default function TransactionView({ accountId, accounts, transactions, onT
     setSearch('')
     historyRef.current = []
     futureRef.current  = []
+    setIsPaymentMode(false)
+    setPaymentFromAccountId('')
+    setShowPayeeSuggestions(false)
   }, [accountId])
 
   // Stable global keyboard shortcuts (Ctrl+Z, Ctrl+X, Delete/Backspace)
@@ -200,6 +220,16 @@ export default function TransactionView({ accountId, accounts, transactions, onT
     return () => document.removeEventListener('mousedown', handler)
   }, [showAccountSettings])
 
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const inInput = payeeInputRef.current?.contains(e.target as Node)
+      const inSuggest = payeeSuggestRef.current?.contains(e.target as Node)
+      if (!inInput && !inSuggest) setShowPayeeSuggestions(false)
+    }
+    if (showPayeeSuggestions) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showPayeeSuggestions])
+
   const clearedBalance = txList.filter(t => t.cleared).reduce((s, t) => s + (t.inflow ?? 0) - (t.outflow ?? 0), 0)
   const unclearedBalance = txList.filter(t => !t.cleared).reduce((s, t) => s + (t.inflow ?? 0) - (t.outflow ?? 0), 0)
   const workingBalance = clearedBalance + unclearedBalance
@@ -243,36 +273,61 @@ export default function TransactionView({ accountId, accounts, transactions, onT
     setEditDraft({})
     setSelectedId(null)
     setShowDatePicker(false)
+    setIsPaymentMode(false)
+    setPaymentFromAccountId('')
+    setShowPayeeSuggestions(false)
   }
 
   const handleSave = () => {
     if (selectedId && Object.keys(editDraft).length > 0) {
       pushHistory()
-      setTxList(prev => {
-        const updated = prev.map(t => t.id === selectedId ? { ...t, ...editDraft } : t)
-        const saved = updated.find(t => t.id === selectedId)
-        if (saved?.repeat) {
-          const today = new Date(); today.setHours(0, 0, 0, 0)
-          const txDate = parseDate(saved.date)
-          if (txDate <= today) {
-            const nextDate = nextFutureDate(txDate, saved.repeat)
-            const nextStr = fmtDate(nextDate)
-            const duplicate = updated.some(t =>
-              t.id !== saved.id && t.accountId === saved.accountId &&
-              t.payee === saved.payee && t.date === nextStr
-            )
-            if (!duplicate) {
-              return [...updated, { ...saved, id: crypto.randomUUID(), date: nextStr, cleared: false, reconciled: false }]
+      if (isPaymentMode && paymentFromAccountId) {
+        // CC payment: save this transaction + create mirror outflow on source account
+        const updatedCCList = txList.map(t => t.id === selectedId ? { ...t, ...editDraft } : t)
+        const saved = updatedCCList.find(t => t.id === selectedId)!
+        const payAmt = saved.inflow ?? saved.outflow ?? 0
+        const mirrorTx: Transaction = {
+          id: crypto.randomUUID(),
+          accountId: paymentFromAccountId,
+          date: saved.date,
+          payee: account?.name ?? '',
+          category: saved.category,
+          memo: saved.memo,
+          outflow: payAmt || null,
+          inflow: null,
+          cleared: false,
+        }
+        onTransactionsChange([...otherTx, ...updatedCCList, mirrorTx])
+        setIsPaymentMode(false)
+        setPaymentFromAccountId('')
+      } else {
+        setTxList(prev => {
+          const updated = prev.map(t => t.id === selectedId ? { ...t, ...editDraft } : t)
+          const saved = updated.find(t => t.id === selectedId)
+          if (saved?.repeat) {
+            const today = new Date(); today.setHours(0, 0, 0, 0)
+            const txDate = parseDate(saved.date)
+            if (txDate <= today) {
+              const nextDate = nextFutureDate(txDate, saved.repeat)
+              const nextStr = fmtDate(nextDate)
+              const duplicate = updated.some(t =>
+                t.id !== saved.id && t.accountId === saved.accountId &&
+                t.payee === saved.payee && t.date === nextStr
+              )
+              if (!duplicate) {
+                return [...updated, { ...saved, id: crypto.randomUUID(), date: nextStr, cleared: false, reconciled: false }]
+              }
             }
           }
-        }
-        return updated
-      })
+          return updated
+        })
+      }
     }
     setPendingId(null)
     setEditDraft({})
     setSelectedId(null)
     setShowDatePicker(false)
+    setShowPayeeSuggestions(false)
   }
 
   const addTransaction = () => {
@@ -293,6 +348,31 @@ export default function TransactionView({ accountId, accounts, transactions, onT
     setEditDraft({ ...newTx })
     setSelectedId(newTx.id)
     setPendingId(newTx.id)
+  }
+
+  const addPayment = () => {
+    pushHistory()
+    if (pendingId) setTxList(prev => prev.filter(t => t.id !== pendingId))
+    const nonCreditAccounts = accounts.filter(a => a.type !== 'credit')
+    const defaultFrom = nonCreditAccounts[0]
+    const newTx: Transaction = {
+      id: crypto.randomUUID(),
+      accountId,
+      date: new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
+      payee: defaultFrom?.name ?? '',
+      category: account?.name ?? null,
+      memo: '',
+      outflow: null,
+      inflow: null,
+      cleared: false,
+    }
+    setTxList(prev => [newTx, ...prev])
+    setEditDraft({ ...newTx })
+    setSelectedId(newTx.id)
+    setPendingId(newTx.id)
+    setIsPaymentMode(true)
+    setPaymentFromAccountId(defaultFrom?.id ?? '')
+    setShowPayeeSuggestions(false)
   }
 
   const handleRowClick = (id: string) => {
@@ -666,6 +746,23 @@ export default function TransactionView({ accountId, accounts, transactions, onT
           Add Transaction
         </button>
 
+        {account?.type === 'credit' && (
+          <button
+            onClick={addPayment}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold transition-all active:scale-95"
+            style={{
+              borderRadius: '12px',
+              background: 'rgba(52,211,153,0.12)',
+              color: '#34d399',
+              border: '1px solid rgba(52,211,153,0.25)',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(52,211,153,0.2)'; e.currentTarget.style.borderColor = 'rgba(52,211,153,0.4)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(52,211,153,0.12)'; e.currentTarget.style.borderColor = 'rgba(52,211,153,0.25)' }}
+          >
+            💳 Make Payment
+          </button>
+        )}
+
         <div className="w-px h-5 mx-1" style={{ background: 'var(--color-border)' }} />
 
         <button
@@ -991,14 +1088,58 @@ export default function TransactionView({ accountId, accounts, transactions, onT
                   {/* PAYEE */}
                   <td className="px-3 py-1.5 max-w-[180px]">
                     {isSelected && !isBillLinked ? (
-                      <input
-                        value={editDraft.payee ?? ''}
-                        onChange={e => setEditDraft(d => ({ ...d, payee: e.target.value }))}
-                        placeholder="Payee"
-                        onClick={e => e.stopPropagation()}
-                        className="px-2 py-1 text-sm rounded-lg outline-none w-full"
-                        style={{ background: 'var(--bg-hover-strong)', border: '1px solid rgba(109,40,217,0.4)', color: 'var(--text-primary)' }}
-                      />
+                      isPaymentMode ? (
+                        <select
+                          value={paymentFromAccountId}
+                          onChange={e => {
+                            const fromId = e.target.value
+                            const fromName = accounts.find(a => a.id === fromId)?.name ?? ''
+                            setPaymentFromAccountId(fromId)
+                            setEditDraft(d => ({ ...d, payee: fromName }))
+                          }}
+                          onClick={e => e.stopPropagation()}
+                          className="px-2 py-1 text-sm rounded-lg outline-none w-full"
+                          style={{
+                            background: 'var(--bg-hover-strong)',
+                            border: '1px solid rgba(52,211,153,0.4)',
+                            color: 'var(--text-primary)',
+                            appearance: 'none',
+                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2334d399'/%3E%3C/svg%3E")`,
+                            backgroundRepeat: 'no-repeat',
+                            backgroundPosition: 'right 8px center',
+                            paddingRight: '24px',
+                          }}
+                        >
+                          {accounts.filter(a => a.type !== 'credit').map(a => (
+                            <option key={a.id} value={a.id} style={{ background: '#1a1625' }}>{a.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="relative" onClick={e => e.stopPropagation()}>
+                          <input
+                            ref={payeeInputRef}
+                            value={editDraft.payee ?? ''}
+                            onChange={e => {
+                              setEditDraft(d => ({ ...d, payee: e.target.value }))
+                              if (payeeInputRef.current) {
+                                const r = payeeInputRef.current.getBoundingClientRect()
+                                setPayeeSuggestPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 220) })
+                              }
+                              setShowPayeeSuggestions(true)
+                            }}
+                            onFocus={() => {
+                              if (payeeInputRef.current) {
+                                const r = payeeInputRef.current.getBoundingClientRect()
+                                setPayeeSuggestPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 220) })
+                              }
+                              setShowPayeeSuggestions(true)
+                            }}
+                            placeholder="Payee"
+                            className="px-2 py-1 text-sm rounded-lg outline-none w-full"
+                            style={{ background: 'var(--bg-hover-strong)', border: '1px solid rgba(109,40,217,0.4)', color: 'var(--text-primary)' }}
+                          />
+                        </div>
+                      )
                     ) : (
                       <span className="text-sm font-medium truncate block" style={{ color: 'var(--text-primary)' }}>
                         {tx.payee || <span style={{ color: 'var(--text-faint)' }}>—</span>}
@@ -1009,7 +1150,22 @@ export default function TransactionView({ accountId, accounts, transactions, onT
                   {/* CATEGORY */}
                   <td className="px-3 py-1.5 max-w-[200px]">
                     {isSelected ? (
-                      isBillLinked ? (
+                      isPaymentMode ? (
+                        <div
+                          className="flex items-center gap-1.5 px-2 py-1 text-sm rounded-lg"
+                          style={{
+                            background: 'rgba(52,211,153,0.08)',
+                            border: '1px solid rgba(52,211,153,0.25)',
+                            color: '#34d399',
+                            minWidth: '160px',
+                            cursor: 'default',
+                          }}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <span className="text-xs flex-shrink-0">💳</span>
+                          <span className="flex-1 truncate text-xs">Credit Card Payments  /  {account?.name ?? ''}</span>
+                        </div>
+                      ) : isBillLinked ? (
                         // Bill-linked: category is locked, show as read-only badge
                         <div
                           className="flex items-center gap-1.5 px-2 py-1 text-sm rounded-lg"
@@ -1196,6 +1352,50 @@ export default function TransactionView({ accountId, accounts, transactions, onT
           </div>
         )}
       </div>
+
+      {/* Payee suggestions portal */}
+      {showPayeeSuggestions && payeeSuggestPos && (() => {
+        const q = (editDraft.payee ?? '').toLowerCase()
+        const suggestions = payeeList
+          .filter(p => q === '' ? true : p.toLowerCase().includes(q))
+          .filter(p => p !== editDraft.payee)
+          .slice(0, 8)
+        if (suggestions.length === 0) return null
+        return createPortal(
+          <div
+            ref={payeeSuggestRef}
+            className="rounded-xl overflow-hidden"
+            style={{
+              position: 'fixed',
+              top: payeeSuggestPos.top,
+              left: payeeSuggestPos.left,
+              width: payeeSuggestPos.width,
+              zIndex: 9999,
+              background: 'var(--bg-surface)',
+              border: '1px solid rgba(109,40,217,0.3)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            }}
+          >
+            {suggestions.map(p => (
+              <button
+                key={p}
+                onMouseDown={e => {
+                  e.preventDefault()
+                  setEditDraft(d => ({ ...d, payee: p }))
+                  setShowPayeeSuggestions(false)
+                }}
+                className="w-full px-3 py-2 text-sm text-left transition-colors"
+                style={{ color: 'var(--text-secondary)', display: 'block' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                {p}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )
+      })()}
 
       {/* Category picker portal — renders outside table so it's never clipped */}
       {showCategoryPicker && categoryPickerPos && createPortal(
