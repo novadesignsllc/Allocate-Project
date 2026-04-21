@@ -201,6 +201,7 @@ function BudgetApp() {
   }, [transactions, dataReady])
 
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [seeding, setSeeding] = useState(false)
   const [displayName, setDisplayName] = useState('')
 
   const isResizing = useRef(false)
@@ -247,12 +248,12 @@ function BudgetApp() {
       saveProfile(uid, name).catch(console.error)
     }
     if (withPlaceholder) {
-      const seeded = await seedSampleData(uid)
-      setBudgetGroups(seeded.budgetGroups)
-      setAccounts(seeded.accounts)
-      setTransactions(seeded.transactions)
-      setBillGroups(seeded.billGroups)
-      setMonthlyAssigned(seeded.monthlyAssigned)
+      setShowOnboarding(false)
+      setSeeding(true)
+      await seedSampleData(uid)
+      localStorage.setItem(`onboarding_complete_${uid}`, 'true')
+      window.location.reload()
+      return
     }
     localStorage.setItem(`onboarding_complete_${uid}`, 'true')
     setShowOnboarding(false)
@@ -788,6 +789,16 @@ function BudgetApp() {
   if (loading) return (
     <div className="flex h-screen items-center justify-center" style={{ background: '#0f0d1a' }}>
       <div className="text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>Loading…</div>
+    </div>
+  )
+
+  if (seeding) return (
+    <div className="flex h-screen flex-col items-center justify-center gap-4" style={{ background: '#0f0d1a' }}>
+      <div
+        className="h-8 w-8 rounded-full border-2 border-transparent animate-spin"
+        style={{ borderTopColor: '#6d28d9', borderRightColor: '#3b82f6' }}
+      />
+      <div className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>Setting up your budget…</div>
     </div>
   )
 
