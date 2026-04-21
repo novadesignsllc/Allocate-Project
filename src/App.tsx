@@ -13,7 +13,7 @@ import IncomeView from './components/IncomeView'
 import LoginPage from './components/LoginPage'
 import OnboardingModal from './components/OnboardingModal'
 import { supabase } from './lib/supabase'
-import { loadAll, seedSampleData, resetUserData, saveAccount, setAccountClosed, removeAccount, saveGroups, saveAssigned, saveTransaction, removeTransaction, saveBillGroups, saveProfile, loadProfile } from './lib/db'
+import { loadAll, seedSampleData, resetUserData, saveAccount, setAccountClosed, removeAccount, saveGroups, saveAssigned, saveTransaction, removeTransaction, saveBillGroups, saveProfile, saveGradientColors, loadProfile } from './lib/db'
 import type { CategoryGroup, Transaction, CategoryPlan } from './data/mockData'
 import { toMonthly, getNextPaymentDate } from './data/billData'
 import type { BillGroup, BillFrequency } from './data/billData'
@@ -233,8 +233,12 @@ function BudgetApp() {
       }
       userId.current = user.id
       try {
-        const [data, profileName] = await Promise.all([loadAll(user.id), loadProfile(user.id)])
-        if (profileName) setDisplayName(profileName)
+        const [data, profile] = await Promise.all([loadAll(user.id), loadProfile(user.id)])
+        if (profile.displayName) setDisplayName(profile.displayName)
+        if (profile.gradientColors) {
+          setGradientColors(profile.gradientColors)
+          localStorage.setItem('gradientColors', JSON.stringify(profile.gradientColors))
+        }
         // New user: no data and onboarding not previously completed → show choice screen
         const onboardingDone = !!localStorage.getItem(`onboarding_complete_${user.id}`)
         const isNewUser = data.budgetGroups.length === 0 && data.accounts.length === 0 && !onboardingDone
@@ -858,7 +862,11 @@ function BudgetApp() {
         isDark={isDark}
         onThemeToggle={() => setIsDark(p => !p)}
         gradientColors={gradientColors}
-        onGradientChange={colors => { setGradientColors(colors); localStorage.setItem('gradientColors', JSON.stringify(colors)) }}
+        onGradientChange={colors => {
+          setGradientColors(colors)
+          localStorage.setItem('gradientColors', JSON.stringify(colors))
+          if (userId.current) trackSave(saveGradientColors(userId.current, colors).catch(console.error))
+        }}
         width={sidebarWidth}
         selectedAccountId={selectedAccountId}
         onAccountSelect={setSelectedAccountId}

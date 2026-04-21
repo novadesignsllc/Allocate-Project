@@ -15,6 +15,10 @@ alter table categories     enable row level security;
 alter table budget_months  enable row level security;
 alter table profiles       enable row level security;
 
+-- Add gradient_colors column to profiles
+alter table profiles
+  add column if not exists gradient_colors jsonb;
+
 drop policy if exists "Users manage own accounts"         on accounts;
 drop policy if exists "Users manage own transactions"     on transactions;
 drop policy if exists "Users manage own category groups"  on category_groups;

@@ -567,9 +567,16 @@ export async function saveProfile(userId: string, displayName: string): Promise<
   await supabase.from('profiles').upsert({ user_id: userId, display_name: displayName })
 }
 
-export async function loadProfile(userId: string): Promise<string | null> {
-  const { data } = await supabase.from('profiles').select('display_name').eq('user_id', userId).single()
-  return data?.display_name ?? null
+export async function saveGradientColors(userId: string, colors: string[]): Promise<void> {
+  await supabase.from('profiles').upsert({ user_id: userId, gradient_colors: colors })
+}
+
+export async function loadProfile(userId: string): Promise<{ displayName: string | null; gradientColors: string[] | null }> {
+  const { data } = await supabase.from('profiles').select('display_name, gradient_colors').eq('user_id', userId).single()
+  return {
+    displayName: (data?.display_name as string) ?? null,
+    gradientColors: (data?.gradient_colors as string[]) ?? null,
+  }
 }
 
 // ── Reset all user data ───────────────────────────────────────────
