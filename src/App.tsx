@@ -627,9 +627,7 @@ function BudgetApp() {
 
         for (const mk of monthSequence) {
           const [mkYear, mkMonth] = mk.split('-').map(Number)
-          assigned = c.plan?.type === 'bill'
-            ? (c.plan.monthlyAmount ?? 0)
-            : (monthlyAssigned[mk]?.[c.id] ?? 0)
+          assigned = monthlyAssigned[mk]?.[c.id] ?? 0
 
           if (ccPaymentMap.has(c.id)) {
             // CC payment category
@@ -689,7 +687,12 @@ function BudgetApp() {
               return parseInt(parts[2]) === mkYear && parseInt(parts[0]) === mkMonth
             })
             activity = catTxs.reduce((sum, t) => sum + (t.inflow ?? 0) - (t.outflow ?? 0), 0)
-            available = carryover + assigned + activity
+            // Bill categories: deduct the uncommitted portion of the monthly obligation.
+            // pending shrinks to 0 once real transactions cover the full monthly amount.
+            const billPending = c.plan?.type === 'bill'
+              ? Math.max(0, (c.plan.monthlyAmount ?? 0) + activity)
+              : 0
+            available = carryover + assigned + activity - billPending
             carryover = available
           }
         }
