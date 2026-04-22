@@ -217,13 +217,13 @@ export default function CategoryRow({ category, isSelected, onSelect, onEmojiCha
     >
       {/* Emoji + picker */}
       {(isCCPayment || isLocked) ? (
-        <div className="flex-shrink-0 text-sm w-7 h-7 flex items-center justify-center">{isCCPayment ? '💳' : category.emoji}</div>
+        <div className="flex-shrink-0 text-xl w-8 h-8 flex items-center justify-center leading-none select-none">{isCCPayment ? '💳' : category.emoji}</div>
       ) : (
         <div className="flex-shrink-0" onClick={e => e.stopPropagation()}>
           <button
             ref={emojiBtnRef}
             onClick={() => setShowEmojiPicker(p => !p)}
-            className="text-sm w-7 h-7 flex items-center justify-center rounded-lg transition-all"
+            className="text-xl w-8 h-8 flex items-center justify-center leading-none rounded-lg transition-all"
             title="Change emoji"
             style={{ background: showEmojiPicker ? 'var(--bg-hover-strong)' : 'transparent' }}
             onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover-strong)')}
@@ -245,7 +245,7 @@ export default function CategoryRow({ category, isSelected, onSelect, onEmojiCha
       {/* Name */}
       <div className="flex-1 min-w-0">
         <span
-          className="text-sm truncate block"
+          className="text-sm font-medium truncate block"
           style={{ color: isSelected ? '#c4b5fd' : 'var(--text-primary)' }}
         >
           {category.name}

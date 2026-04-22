@@ -483,13 +483,6 @@ function BudgetApp() {
     if (userId.current) trackSave(deleteCategoryGroup(groupId, group.categories.map(c => c.id)).catch(console.error))
   }
 
-  const onCategoryEmojiChange = (catId: string, emoji: string) => {
-    setBudgetGroups(prev => prev.map(g => ({
-      ...g,
-      categories: g.categories.map(c => c.id === catId ? { ...c, emoji } : c),
-    })))
-  }
-
   const onRenameCategory = (catId: string, name: string) => {
     setTransactions(prev => prev.map(tx => {
       const cat = budgetGroups.flatMap(g => g.categories).find(c => c.id === catId)
