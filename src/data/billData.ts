@@ -1,4 +1,4 @@
-export type BillFrequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
+export type BillFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
 
 export interface Bill {
   id: string
@@ -20,6 +20,7 @@ export function getNextPaymentDate(dueDate: string, frequency: BillFrequency): D
     switch (frequency) {
       case 'daily':     d.setDate(d.getDate() + 1); break
       case 'weekly':    d.setDate(d.getDate() + 7); break
+      case 'biweekly':  d.setDate(d.getDate() + 14); break
       case 'monthly':   d.setMonth(d.getMonth() + 1); break
       case 'quarterly': d.setMonth(d.getMonth() + 3); break
       case 'yearly':    d.setFullYear(d.getFullYear() + 1); break
@@ -59,6 +60,7 @@ export function toMonthly(amount: number, freq: BillFrequency): number {
   switch (freq) {
     case 'daily':     return amount * 30
     case 'weekly':    return amount * (52 / 12)
+    case 'biweekly':  return amount * (26 / 12)
     case 'monthly':   return amount
     case 'quarterly': return amount / 3
     case 'yearly':    return amount / 12
@@ -68,6 +70,7 @@ export function toMonthly(amount: number, freq: BillFrequency): number {
 export const FREQ_CONFIG: Record<BillFrequency, { label: string; color: string; bg: string; border: string }> = {
   daily:     { label: 'Daily',     color: '#60a5fa', bg: 'rgba(96,165,250,0.12)',   border: 'rgba(96,165,250,0.3)'   },
   weekly:    { label: 'Weekly',    color: '#c084fc', bg: 'rgba(192,132,252,0.12)',  border: 'rgba(192,132,252,0.3)'  },
+  biweekly:  { label: 'Bi-Weekly', color: '#a78bfa', bg: 'rgba(167,139,250,0.12)',  border: 'rgba(167,139,250,0.3)'  },
   monthly:   { label: 'Monthly',   color: '#34d399', bg: 'rgba(52,211,153,0.12)',   border: 'rgba(52,211,153,0.3)'   },
   quarterly: { label: 'Quarterly', color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',   border: 'rgba(251,191,36,0.3)'   },
   yearly:    { label: 'Yearly',    color: '#f97316', bg: 'rgba(249,115,22,0.12)',   border: 'rgba(249,115,22,0.3)'   },
