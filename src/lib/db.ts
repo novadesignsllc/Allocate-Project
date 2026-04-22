@@ -74,12 +74,19 @@ export async function loadAll(userId: string): Promise<AppData> {
     }
   })
 
+  // Build set of bill IDs so we can remap their budget_months keys
+  const billIdSet = new Set<string>()
+  ;(dbBills ?? []).forEach(b => billIdSet.add(b.id as string))
+
   // Build monthlyAssigned: YYYY-MM → { catId: amount }
+  // Bill allocations are stored with the raw bill UUID; remap to bill-category-{uuid}
   const monthlyAssigned: Record<string, Record<string, number>> = {}
   dbBudgetMonths?.forEach(bm => {
     const mk = (bm.month as string).slice(0, 7) // '2026-04-01' → '2026-04'
     if (!monthlyAssigned[mk]) monthlyAssigned[mk] = {}
-    monthlyAssigned[mk][bm.category_id as string] = Number(bm.assigned)
+    const rawId = bm.category_id as string
+    const key = billIdSet.has(rawId) ? `bill-category-${rawId}` : rawId
+    monthlyAssigned[mk][key] = Number(bm.assigned)
   })
 
   // Build transactions
@@ -228,10 +235,12 @@ export async function saveAssigned(
   monthKey: string, // 'YYYY-MM'
   assigned: number,
 ): Promise<void> {
-  // Synthetic category IDs (e.g. cc-payment-<accountId>) are not real DB UUIDs — skip them
-  if (!UUID_RE.test(catId)) return
+  // Bill categories use a synthetic prefix — strip it to get the real UUID
+  const dbId = catId.startsWith('bill-category-') ? catId.slice('bill-category-'.length) : catId
+  // CC and other synthetic IDs (e.g. cc-payment-<accountId>) are not UUIDs — skip them
+  if (!UUID_RE.test(dbId)) return
   await supabase.from('budget_months').upsert(
-    { user_id: userId, category_id: catId, month: `${monthKey}-01`, assigned },
+    { user_id: userId, category_id: dbId, month: `${monthKey}-01`, assigned },
     { onConflict: 'user_id,category_id,month' }
   )
 }
