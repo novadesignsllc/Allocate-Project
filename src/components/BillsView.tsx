@@ -21,7 +21,7 @@ function EmojiPicker({ current, onSelect, onClose, anchorRef }: {
   current: string
   onSelect: (e: string) => void
   onClose: () => void
-  anchorRef: React.RefObject<HTMLButtonElement>
+  anchorRef: React.RefObject<HTMLButtonElement | null>
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const [custom, setCustom] = useState(current)

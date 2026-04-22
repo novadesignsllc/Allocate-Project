@@ -79,7 +79,7 @@ export const mockAccounts = [
   { id: 'amex',           name: 'Amex Gold Card',         type: 'credit' },
 ]
 
-export type RepeatInterval = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
+export type RepeatInterval = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'biyearly' | 'yearly'
 
 export interface Transaction {
   id: string

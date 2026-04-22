@@ -1,4 +1,4 @@
-export type BillFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
+export type BillFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'biyearly' | 'yearly'
 
 export interface Bill {
   id: string
@@ -23,6 +23,7 @@ export function getNextPaymentDate(dueDate: string, frequency: BillFrequency): D
       case 'biweekly':  d.setDate(d.getDate() + 14); break
       case 'monthly':   d.setMonth(d.getMonth() + 1); break
       case 'quarterly': d.setMonth(d.getMonth() + 3); break
+      case 'biyearly':  d.setMonth(d.getMonth() + 6); break
       case 'yearly':    d.setFullYear(d.getFullYear() + 1); break
     }
     safety++
@@ -63,6 +64,7 @@ export function toMonthly(amount: number, freq: BillFrequency): number {
     case 'biweekly':  return amount * (26 / 12)
     case 'monthly':   return amount
     case 'quarterly': return amount / 3
+    case 'biyearly':  return amount / 6
     case 'yearly':    return amount / 12
   }
 }
@@ -73,6 +75,7 @@ export const FREQ_CONFIG: Record<BillFrequency, { label: string; color: string; 
   biweekly:  { label: 'Bi-Weekly', color: '#a78bfa', bg: 'rgba(167,139,250,0.12)',  border: 'rgba(167,139,250,0.3)'  },
   monthly:   { label: 'Monthly',   color: '#34d399', bg: 'rgba(52,211,153,0.12)',   border: 'rgba(52,211,153,0.3)'   },
   quarterly: { label: 'Quarterly', color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',   border: 'rgba(251,191,36,0.3)'   },
+  biyearly:  { label: 'Bi-Yearly', color: '#fb923c', bg: 'rgba(251,146,60,0.12)',   border: 'rgba(251,146,60,0.3)'   },
   yearly:    { label: 'Yearly',    color: '#f97316', bg: 'rgba(249,115,22,0.12)',   border: 'rgba(249,115,22,0.3)'   },
 }
 
